@@ -27,6 +27,9 @@ import {
   FileText,
   Terminal,
   Zap,
+  Sparkles,
+  Radio,
+  Database,
 } from "lucide-react";
 
 interface Message {
@@ -121,7 +124,15 @@ export default function Home() {
   // Panels state
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<"agenda" | "vercel" | "stitch" | "commands">("agenda");
+  const [inspectorTab, setInspectorTab] = useState<"agenda" | "logs" | "radar" | "vercel" | "stitch" | "commands">("agenda");
+
+  // Daily Logs & Radar State
+  const [dailyLogs, setDailyLogs] = useState<any[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [semanticQuery, setSemanticQuery] = useState("");
+  const [semanticSearching, setSemanticSearching] = useState(false);
+  const [radarDigests, setRadarDigests] = useState<any[]>([]);
+  const [radarLoading, setRadarLoading] = useState(false);
 
   // Attachments state
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -174,8 +185,63 @@ export default function Home() {
     }
   };
 
+  const fetchDailyLogs = async () => {
+    setLogsLoading(true);
+    try {
+      const res = await fetch("/api/logs?limit=15");
+      if (res.ok) {
+        const data = await res.json();
+        setDailyLogs(data.logs || []);
+      }
+    } catch (e) {
+      console.error("Fetch logs error:", e);
+    } finally {
+      setLogsLoading(false);
+    }
+  };
+
+  const performSemanticSearch = async () => {
+    if (!semanticQuery.trim()) {
+      fetchDailyLogs();
+      return;
+    }
+    setSemanticSearching(true);
+    try {
+      const res = await fetch("/api/logs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: semanticQuery.trim(), limit: 5 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDailyLogs(data.results || []);
+      }
+    } catch (e) {
+      console.error("Semantic search error:", e);
+    } finally {
+      setSemanticSearching(false);
+    }
+  };
+
+  const fetchRadarDigests = async () => {
+    setRadarLoading(true);
+    try {
+      const res = await fetch("/api/radar");
+      if (res.ok) {
+        const data = await res.json();
+        setRadarDigests(data.digests || []);
+      }
+    } catch (e) {
+      console.error("Fetch radar error:", e);
+    } finally {
+      setRadarLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchWorkspaceData();
+    fetchDailyLogs();
+    fetchRadarDigests();
   }, []);
 
   // Keyboard shortcut for Cmd+K and Esc
@@ -1029,11 +1095,11 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tab Switcher - 4 Tabs (Agenda, Vercel, Stitch, Commands) */}
-        <div className="grid grid-cols-4 border-b border-[#1a1a1a] text-xs font-mono bg-[#080808]">
+        {/* Tab Switcher - 6 Tabs (Agenda, Logs, Radar, Vercel, Stitch, Commands) */}
+        <div className="flex overflow-x-auto border-b border-[#1a1a1a] text-xs font-mono bg-[#080808] no-scrollbar">
           <button
             onClick={() => setInspectorTab("agenda")}
-            className={`py-2 text-center transition border-b-2 text-[11px] ${
+            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
               inspectorTab === "agenda"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1042,8 +1108,28 @@ export default function Home() {
             Agenda
           </button>
           <button
+            onClick={() => setInspectorTab("logs")}
+            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] flex items-center gap-1 ${
+              inspectorTab === "logs"
+                ? "border-white text-white bg-[#0e0e0e]"
+                : "border-transparent text-[#666666] hover:text-[#cccccc]"
+            }`}
+          >
+            <Database size={10} /> Logs
+          </button>
+          <button
+            onClick={() => setInspectorTab("radar")}
+            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] flex items-center gap-1 ${
+              inspectorTab === "radar"
+                ? "border-white text-white bg-[#0e0e0e]"
+                : "border-transparent text-[#666666] hover:text-[#cccccc]"
+            }`}
+          >
+            <Radio size={10} /> Radar
+          </button>
+          <button
             onClick={() => setInspectorTab("vercel")}
-            className={`py-2 text-center transition border-b-2 text-[11px] ${
+            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
               inspectorTab === "vercel"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1053,7 +1139,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("stitch")}
-            className={`py-2 text-center transition border-b-2 text-[11px] ${
+            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
               inspectorTab === "stitch"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1063,7 +1149,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("commands")}
-            className={`py-2 text-center transition border-b-2 text-[11px] ${
+            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
               inspectorTab === "commands"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1143,6 +1229,150 @@ export default function Home() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Logs Tab (Daily Activity & Semantic Vector RAG Search) */}
+          {inspectorTab === "logs" && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[11px] text-[#666666]">
+                  <span className="flex items-center gap-1.5 text-[#cccccc]">
+                    <Database size={12} /> Neon PostgreSQL Activity Logs
+                  </span>
+                  <button
+                    onClick={fetchDailyLogs}
+                    disabled={logsLoading}
+                    className="hover:text-white transition"
+                    title="Refresh logs from Neon DB"
+                  >
+                    <RefreshCw size={11} className={logsLoading ? "animate-spin" : ""} />
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={semanticQuery}
+                    onChange={(e) => setSemanticQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") performSemanticSearch();
+                    }}
+                    placeholder="Semantic search (e.g. 'kickoff meeting', 'revisi invoice')..."
+                    className="w-full bg-[#0a0a0a] border border-[#1a1a1a] rounded px-3 py-2 text-xs text-white placeholder-[#555555] focus:outline-none focus:border-[#444444] pr-16"
+                  />
+                  <button
+                    onClick={performSemanticSearch}
+                    disabled={semanticSearching || !semanticQuery.trim()}
+                    className="absolute right-1 top-1 bottom-1 px-2 bg-[#141414] hover:bg-[#222222] text-[#aaaaaa] hover:text-white rounded text-[10px] flex items-center gap-1 transition border border-[#222222] disabled:opacity-40"
+                  >
+                    <Sparkles size={10} className="text-emerald-400" />
+                    {semanticSearching ? "..." : "Search"}
+                  </button>
+                </div>
+                {semanticQuery && (
+                  <div className="flex items-center justify-between text-[10px] text-[#666666] px-1">
+                    <span>Hasil pencarian semantik (vektor kosinus Google pgvector)</span>
+                    <button
+                      onClick={() => {
+                        setSemanticQuery("");
+                        fetchDailyLogs();
+                      }}
+                      className="text-[#888888] hover:text-white underline"
+                    >
+                      Reset
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {logsLoading || semanticSearching ? (
+                <div className="text-center py-8 text-[#555555]">Memuat data dari Neon PostgreSQL...</div>
+              ) : dailyLogs.length === 0 ? (
+                <div className="p-4 border border-[#1a1a1a] rounded bg-[#0a0a0a] text-[#666666] text-center">
+                  Belum ada riwayat aktivitas yang cocok.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {dailyLogs.map((log: any) => (
+                    <div
+                      key={log.id}
+                      className="border border-[#1a1a1a] rounded bg-[#080808] p-3 space-y-2 hover:border-[#333333] transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-medium text-xs flex items-center gap-1.5">
+                          📅 {log.log_date}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {log.similarity !== undefined && (
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/60 text-emerald-400 text-[10px]">
+                              {(log.similarity * 100).toFixed(0)}% match
+                            </span>
+                          )}
+                          <span className="px-1.5 py-0.5 rounded bg-[#141414] border border-[#222222] text-[#888888] text-[10px]">
+                            {log.device}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-[#aaaaaa] text-[11px] prose prose-invert max-w-none prose-sm leading-relaxed border-t border-[#141414] pt-2">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {log.summary_markdown}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Radar Tab (Autonomous Tech Radar Digests) */}
+          {inspectorTab === "radar" && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-[11px] text-[#666666]">
+                <span className="flex items-center gap-1.5 text-[#cccccc]">
+                  <Radio size={12} className="text-emerald-400" /> Autonomous Tech Radar
+                </span>
+                <button
+                  onClick={fetchRadarDigests}
+                  disabled={radarLoading}
+                  className="hover:text-white transition"
+                  title="Refresh radar digests"
+                >
+                  <RefreshCw size={11} className={radarLoading ? "animate-spin" : ""} />
+                </button>
+              </div>
+
+              {radarLoading ? (
+                <div className="text-center py-8 text-[#555555]">Memuat update radar ekosistem...</div>
+              ) : radarDigests.length === 0 ? (
+                <div className="p-4 border border-[#1a1a1a] rounded bg-[#0a0a0a] text-[#666666] text-center">
+                  Belum ada update radar terbaru.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {radarDigests.map((r: any) => (
+                    <div
+                      key={r.file}
+                      className="border border-[#1a1a1a] rounded bg-[#080808] p-3 space-y-2 hover:border-[#333333] transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-medium text-xs font-mono">
+                          📦 {r.repo}
+                        </span>
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-950/50 border border-emerald-800/40 text-emerald-400 text-[10px]">
+                          Monitored
+                        </span>
+                      </div>
+                      <div className="text-[#aaaaaa] text-[11px] prose prose-invert max-w-none prose-sm leading-relaxed border-t border-[#141414] pt-2">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {r.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
