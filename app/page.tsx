@@ -25,7 +25,8 @@ import {
   Paperclip,
   Image as ImageIcon,
   FileText,
-  Trash2,
+  Terminal,
+  Zap,
 } from "lucide-react";
 
 interface Message {
@@ -52,6 +53,65 @@ interface WorkspaceData {
   github: any[];
 }
 
+interface TelegramCommand {
+  command: string;
+  description: string;
+  category: string;
+}
+
+// 62 Canonical Telegram Bot Commands
+const TELEGRAM_COMMANDS: TelegramCommand[] = [
+  { command: "/status", description: "Show session, model, token, and context info", category: "Runtime" },
+  { command: "/usage", description: "Show token usage, cost, and rate limits", category: "Runtime" },
+  { command: "/context", description: "Show detailed context window usage gauge and stats", category: "Runtime" },
+  { command: "/model", description: "Switch model (session-scoped; --global to persist)", category: "Runtime" },
+  { command: "/new", description: "Start a fresh session with clean context and history", category: "Session" },
+  { command: "/sessions", description: "Browse and resume previous sessions", category: "Session" },
+  { command: "/resume", description: "Resume a previously-named session", category: "Session" },
+  { command: "/save", description: "Export the current conversation", category: "Session" },
+  { command: "/undo", description: "Back up N user turns and re-prompt (default 1)", category: "Session" },
+  { command: "/retry", description: "Retry the last message (resend to agent)", category: "Session" },
+  { command: "/compress", description: "Compress conversation context (keep recent N turns)", category: "Session" },
+  { command: "/branch", description: "Branch the current session into a new thread", category: "Session" },
+  { command: "/title", description: "Set a custom title for the current session", category: "Session" },
+  { command: "/diff", description: "Show git changes in the working directory", category: "Git" },
+  { command: "/plan", description: "Write an implementation plan to .hermes/plans/", category: "Agents" },
+  { command: "/review", description: "Spawn an independent subagent to review code/PR", category: "Agents" },
+  { command: "/agents", description: "Show active agents and running tasks", category: "Agents" },
+  { command: "/bg", description: "Run a prompt in a separate background session", category: "Agents" },
+  { command: "/stop", description: "Kill all running background processes", category: "Control" },
+  { command: "/pause", description: "Pause new work globally (emergency stop)", category: "Control" },
+  { command: "/rollback", description: "List or restore filesystem checkpoints", category: "Control" },
+  { command: "/approve", description: "Approve a pending dangerous command", category: "Approvals" },
+  { command: "/deny", description: "Deny a pending dangerous command", category: "Approvals" },
+  { command: "/yolo", description: "Toggle YOLO mode (skip dangerous command approvals)", category: "Approvals" },
+  { command: "/approvals", description: "Show or set persistent command approval mode", category: "Approvals" },
+  { command: "/goal", description: "Set a standing goal Hermes works on across turns", category: "Workflow" },
+  { command: "/subgoal", description: "Add extra criteria on the active goal", category: "Workflow" },
+  { command: "/loop", description: "Re-run a prompt on a recurring interval", category: "Workflow" },
+  { command: "/heartbeat", description: "Set a recurring prompt when session is idle", category: "Workflow" },
+  { command: "/steer", description: "Inject a course-correction message without stopping", category: "Workflow" },
+  { command: "/btw", description: "Ask a side question without interrupting flow", category: "Workflow" },
+  { command: "/queue", description: "Queue a prompt for the next turn", category: "Workflow" },
+  { command: "/memory", description: "Review memory writes / toggle approval gate", category: "Memory" },
+  { command: "/refine", description: "Review conversation and save lessons to memory/skills", category: "Memory" },
+  { command: "/learn", description: "Learn a reusable skill from dirs, URLs, or notes", category: "Skills" },
+  { command: "/bundles", description: "List skill bundles and aliases", category: "Skills" },
+  { command: "/commands", description: "Browse all commands and skills paginated", category: "System" },
+  { command: "/help", description: "Show available commands and documentation", category: "System" },
+  { command: "/update", description: "Update Hermes Agent to the latest version", category: "System" },
+  { command: "/restart", description: "Gracefully restart gateway after active runs", category: "System" },
+  { command: "/debug", description: "Upload debug report (system info + logs)", category: "System" },
+  { command: "/profile", description: "Show active profile name and home directory", category: "System" },
+  { command: "/whoami", description: "Show slash command access level (admin/user)", category: "System" },
+  { command: "/fast", description: "Toggle fast mode (Priority Processing)", category: "System" },
+  { command: "/reasoning", description: "Manage reasoning effort and display", category: "System" },
+  { command: "/voice", description: "Toggle voice mode", category: "System" },
+  { command: "/egress", description: "Show Docker egress proxy status", category: "System" },
+  { command: "/init", description: "Generate or update AGENTS.md project instructions", category: "System" },
+  { command: "/curator", description: "Background skill maintenance and health check", category: "System" },
+];
+
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -61,7 +121,7 @@ export default function Home() {
   // Panels state
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [inspectorTab, setInspectorTab] = useState<"agenda" | "vercel" | "stitch">("agenda");
+  const [inspectorTab, setInspectorTab] = useState<"agenda" | "vercel" | "stitch" | "commands">("agenda");
 
   // Attachments state
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -70,6 +130,13 @@ export default function Home() {
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
+
+  // Inspector commands filter
+  const [commandFilterQuery, setCommandFilterQuery] = useState("");
+
+  // Slash auto-complete state
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashFiltered, setSlashFiltered] = useState<TelegramCommand[]>([]);
 
   // Workspace data
   const [workspace, setWorkspace] = useState<WorkspaceData>({
@@ -119,11 +186,28 @@ export default function Home() {
         setCommandPaletteOpen((prev) => !prev);
       } else if (e.key === "Escape") {
         setCommandPaletteOpen(false);
+        setSlashMenuOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Slash command trigger detection
+  useEffect(() => {
+    if (input.startsWith("/")) {
+      const query = input.slice(1).toLowerCase().trim();
+      const filtered = TELEGRAM_COMMANDS.filter(
+        (c) =>
+          c.command.toLowerCase().includes(query) ||
+          c.description.toLowerCase().includes(query)
+      );
+      setSlashFiltered(filtered.slice(0, 8));
+      setSlashMenuOpen(filtered.length > 0);
+    } else {
+      setSlashMenuOpen(false);
+    }
+  }, [input]);
 
   // Scroll chat to bottom
   const scrollToBottom = () => {
@@ -197,6 +281,18 @@ export default function Home() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Select a slash command
+  const selectSlashCommand = (cmd: TelegramCommand) => {
+    setSlashMenuOpen(false);
+    if (cmd.command === "/new") {
+      setMessages([]);
+      setInput("");
+      return;
+    }
+    // Set the command and execute
+    sendMessage(cmd.command);
+  };
+
   // Handle message sending with SSE streaming
   const sendMessage = async (overrideText?: string) => {
     const textToSend = overrideText || input;
@@ -206,6 +302,14 @@ export default function Home() {
       hour: "2-digit",
       minute: "2-digit",
     });
+
+    // Special client-side handling for /new
+    if (textToSend.trim() === "/new") {
+      setMessages([]);
+      setInput("");
+      setAttachments([]);
+      return;
+    }
 
     // Build payload with attachments if present
     let finalPrompt = textToSend.trim();
@@ -236,6 +340,7 @@ export default function Home() {
     setMessages(newMessages);
     if (!overrideText) setInput("");
     setAttachments([]);
+    setSlashMenuOpen(false);
     setLoading(true);
 
     const assistantMessage: Message = {
@@ -323,10 +428,11 @@ export default function Home() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  // Commands for palette
-  const commands = [
+  // Commands for palette (Action shortcuts + Full Telegram Bot Commands)
+  const paletteCommands = [
     {
       label: "Briefing Pagi (Kalender & Gmail)",
+      command: "/briefing",
       category: "Action",
       action: () => {
         setCommandPaletteOpen(false);
@@ -335,6 +441,7 @@ export default function Home() {
     },
     {
       label: "Cek Status Deployment Vercel",
+      command: "/vercel",
       category: "Action",
       action: () => {
         setCommandPaletteOpen(false);
@@ -342,52 +449,37 @@ export default function Home() {
       },
     },
     {
-      label: "Tampilkan Screen Nutritrack (Google Stitch)",
-      category: "Design",
-      action: () => {
-        setCommandPaletteOpen(false);
-        sendMessage("Jelaskan 5 screen di project Nutritrack Design System di Stitch dan token warnanya.");
-      },
-    },
-    {
-      label: "Buka Inspector Deck: Agenda",
+      label: "Buka Inspector Deck: Telegram Commands",
+      command: "/commands",
       category: "View",
       action: () => {
         setCommandPaletteOpen(false);
         setInspectorOpen(true);
-        setInspectorTab("agenda");
+        setInspectorTab("commands");
       },
     },
-    {
-      label: "Buka Inspector Deck: Vercel",
-      category: "View",
+    ...TELEGRAM_COMMANDS.map((tc) => ({
+      label: `${tc.command} — ${tc.description}`,
+      command: tc.command,
+      category: tc.category,
       action: () => {
         setCommandPaletteOpen(false);
-        setInspectorOpen(true);
-        setInspectorTab("vercel");
+        sendMessage(tc.command);
       },
-    },
-    {
-      label: "Buka Inspector Deck: Stitch Screens",
-      category: "View",
-      action: () => {
-        setCommandPaletteOpen(false);
-        setInspectorOpen(true);
-        setInspectorTab("stitch");
-      },
-    },
-    {
-      label: "Clear Chat / New Thread",
-      category: "Session",
-      action: () => {
-        setCommandPaletteOpen(false);
-        setMessages([]);
-      },
-    },
+    })),
   ];
 
-  const filteredCommands = commands.filter((c) =>
-    c.label.toLowerCase().includes(commandQuery.toLowerCase())
+  const filteredPaletteCommands = paletteCommands.filter(
+    (c) =>
+      c.label.toLowerCase().includes(commandQuery.toLowerCase()) ||
+      c.command.toLowerCase().includes(commandQuery.toLowerCase())
+  );
+
+  const filteredInspectorCommands = TELEGRAM_COMMANDS.filter(
+    (c) =>
+      c.command.toLowerCase().includes(commandFilterQuery.toLowerCase()) ||
+      c.description.toLowerCase().includes(commandFilterQuery.toLowerCase()) ||
+      c.category.toLowerCase().includes(commandFilterQuery.toLowerCase())
   );
 
   return (
@@ -400,7 +492,7 @@ export default function Home() {
         />
       )}
 
-      {/* 1. LEFT SIDEBAR (Desktop relative, Mobile fixed drawer) */}
+      {/* 1. LEFT SIDEBAR */}
       <aside
         className={`${
           sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-0"
@@ -454,9 +546,30 @@ export default function Home() {
               <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] shrink-0" />
               <span>General Session</span>
             </button>
+
+            {/* Quick Command Menu trigger in sidebar */}
+            <div className="pt-3">
+              <div className="text-[11px] font-mono uppercase tracking-wider text-[#555555] px-2 py-1">
+                Bot Commands ({TELEGRAM_COMMANDS.length})
+              </div>
+              <button
+                onClick={() => {
+                  setInspectorOpen(true);
+                  setInspectorTab("commands");
+                  if (window.innerWidth < 1024) setSidebarOpen(false);
+                }}
+                className="w-full text-left px-2.5 py-2 rounded text-xs border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#111111] text-[#aaaaaa] hover:text-white transition flex items-center justify-between"
+              >
+                <span className="flex items-center gap-1.5 font-mono">
+                  <Terminal size={12} className="text-[#10b981]" />
+                  <span>Browse Commands</span>
+                </span>
+                <span className="text-[10px] text-[#555555]">/</span>
+              </button>
+            </div>
           </div>
 
-          {/* Connected Services Stack (Restrained Monochrome) */}
+          {/* Connected Services Stack */}
           <div className="border-t border-[#1a1a1a] p-3 space-y-2 bg-[#050505]">
             <div className="text-[10px] font-mono uppercase tracking-wider text-[#555555] px-1 flex items-center justify-between">
               <span>Environment</span>
@@ -512,7 +625,7 @@ export default function Home() {
 
       {/* 2. MAIN CENTER CONSOLE */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-black relative">
-        {/* Top Hairline Header - Fully responsive for mobile */}
+        {/* Top Hairline Header */}
         <header className="h-12 border-b border-[#1a1a1a] px-3 sm:px-4 flex items-center justify-between shrink-0 bg-black/90 backdrop-blur z-10">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
@@ -532,13 +645,13 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Quick Command Trigger - Compact on mobile */}
+            {/* Quick Command Trigger */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
               className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 rounded text-xs font-mono bg-[#0c0c0c] hover:bg-[#141414] border border-[#1f1f1f] text-[#888888] hover:text-[#ededed] transition"
             >
               <Command size={12} />
-              <span className="hidden sm:inline">Search</span>
+              <span className="hidden sm:inline">Commands</span>
               <kbd className="text-[9px] sm:text-[10px] bg-[#1a1a1a] text-[#aaaaaa] px-1 py-0.2 rounded border border-[#262626]">
                 ⌘K
               </kbd>
@@ -563,7 +676,7 @@ export default function Home() {
         {/* Chat / Operate Stream */}
         <div className="flex-1 overflow-y-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-5">
           {messages.length === 0 ? (
-            /* Clean Empty State: True Operate Surface */
+            /* Clean Empty State */
             <div className="max-w-2xl mx-auto mt-8 sm:mt-16 text-center space-y-5 sm:space-y-6">
               <div className="space-y-1.5 sm:space-y-2">
                 <div className="text-[11px] font-mono tracking-widest text-[#666666] uppercase">
@@ -579,6 +692,38 @@ export default function Home() {
 
               {/* Minimalist prompt suggestions */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left pt-2 max-w-lg mx-auto">
+                <button
+                  onClick={() => sendMessage("/status")}
+                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
+                >
+                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Terminal size={12} className="text-[#10b981]" />
+                      /status
+                    </span>
+                    <span className="text-[#555555] font-mono text-[10px]">INFO</span>
+                  </div>
+                  <div className="text-[11px] text-[#666666] mt-1">
+                    Cek model, token usage, dan memori
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => sendMessage("/diff")}
+                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
+                >
+                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <GitBranch size={12} className="text-[#10b981]" />
+                      /diff
+                    </span>
+                    <span className="text-[#555555] font-mono text-[10px]">GIT</span>
+                  </div>
+                  <div className="text-[11px] text-[#666666] mt-1">
+                    Lihat uncommitted changes git repo
+                  </div>
+                </button>
+
                 <button
                   onClick={() =>
                     sendMessage(
@@ -612,40 +757,11 @@ export default function Home() {
                     Cek status production & domain live
                   </div>
                 </button>
+              </div>
 
-                <button
-                  onClick={() =>
-                    sendMessage(
-                      "Tampilkan 5 screen di project Nutritrack Design System di Stitch dan ringkas layoutnya."
-                    )
-                  }
-                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
-                >
-                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
-                    <span>Google Stitch</span>
-                    <span className="text-[#555555] font-mono text-[10px]">03</span>
-                  </div>
-                  <div className="text-[11px] text-[#666666] mt-1">
-                    Inspect Nutritrack screens & tokens
-                  </div>
-                </button>
-
-                <button
-                  onClick={() =>
-                    sendMessage(
-                      "Jelaskan arsitektur kode client ini dan bagaimana ia melakukan SSE stream ke port 8642."
-                    )
-                  }
-                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
-                >
-                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
-                    <span>System Runtime</span>
-                    <span className="text-[#555555] font-mono text-[10px]">04</span>
-                  </div>
-                  <div className="text-[11px] text-[#666666] mt-1">
-                    Inspect local API SSE gateway
-                  </div>
-                </button>
+              {/* Bot commands hint */}
+              <div className="text-[11px] font-mono text-[#555555] pt-2">
+                Ketik <span className="text-[#ededed] bg-[#141414] px-1 py-0.5 rounded border border-[#222222]">/</span> untuk membuka daftar 62 perintah Hermes bot
               </div>
             </div>
           ) : (
@@ -729,9 +845,38 @@ export default function Home() {
           )}
         </div>
 
-        {/* Bottom Dock Input Bar with Attachment Preview */}
-        <div className="p-2.5 sm:p-4 border-t border-[#1a1a1a] bg-black shrink-0">
-          <div className="max-w-3xl mx-auto">
+        {/* Bottom Dock Input Bar with Slash Command Popover & Attachment Preview */}
+        <div className="p-2.5 sm:p-4 border-t border-[#1a1a1a] bg-black shrink-0 relative">
+          <div className="max-w-3xl mx-auto relative">
+            {/* Slash Command Auto-complete Popover */}
+            {slashMenuOpen && slashFiltered.length > 0 && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#080808] border border-[#262626] rounded-lg shadow-2xl overflow-hidden font-mono z-40 max-h-60 overflow-y-auto">
+                <div className="px-3 py-1.5 bg-[#0e0e0e] border-b border-[#1a1a1a] flex items-center justify-between text-[10px] text-[#777777] uppercase tracking-wider">
+                  <span>Hermes Bot Commands</span>
+                  <span>{slashFiltered.length} matches</span>
+                </div>
+                <div className="p-1 space-y-0.5">
+                  {slashFiltered.map((cmd, i) => (
+                    <button
+                      key={i}
+                      onClick={() => selectSlashCommand(cmd)}
+                      className="w-full text-left px-2.5 py-1.5 rounded hover:bg-[#141414] flex items-center justify-between group transition text-xs"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-white font-medium">{cmd.command}</span>
+                        <span className="text-[#666666] truncate max-w-[280px] sm:max-w-md text-[11px]">
+                          {cmd.description}
+                        </span>
+                      </div>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#111111] text-[#888888] border border-[#222222] uppercase">
+                        {cmd.category}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Hidden native file input */}
             <input
               type="file"
@@ -780,10 +925,16 @@ export default function Home() {
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage();
+                    if (slashMenuOpen && slashFiltered.length > 0) {
+                      selectSlashCommand(slashFiltered[0]);
+                    } else {
+                      sendMessage();
+                    }
+                  } else if (e.key === "Escape") {
+                    setSlashMenuOpen(false);
                   }
                 }}
-                placeholder="Tulis pesan atau instruksi untuk Hermes..."
+                placeholder="Tulis pesan atau ketik '/' untuk melihat perintah Hermes..."
                 rows={1}
                 disabled={loading}
                 className="w-full bg-transparent text-sm text-[#ededed] placeholder-[#555555] focus:outline-none resize-none leading-relaxed"
@@ -800,6 +951,20 @@ export default function Home() {
                   >
                     <Paperclip size={13} />
                     <span className="text-[10px] hidden sm:inline">Attach</span>
+                  </button>
+
+                  {/* Slash command quick pill */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInput("/");
+                      textareaRef.current?.focus();
+                    }}
+                    className="p-1 rounded text-[#888888] hover:text-white hover:bg-[#141414] transition flex items-center gap-1"
+                    title="Open slash commands"
+                  >
+                    <Terminal size={12} />
+                    <span className="text-[10px] hidden sm:inline">Commands (/)</span>
                   </button>
 
                   <span className="hidden sm:inline">Enter to send</span>
@@ -864,11 +1029,11 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-3 border-b border-[#1a1a1a] text-xs font-mono bg-[#080808]">
+        {/* Tab Switcher - 4 Tabs (Agenda, Vercel, Stitch, Commands) */}
+        <div className="grid grid-cols-4 border-b border-[#1a1a1a] text-xs font-mono bg-[#080808]">
           <button
             onClick={() => setInspectorTab("agenda")}
-            className={`py-2 text-center transition border-b-2 ${
+            className={`py-2 text-center transition border-b-2 text-[11px] ${
               inspectorTab === "agenda"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -878,7 +1043,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("vercel")}
-            className={`py-2 text-center transition border-b-2 ${
+            className={`py-2 text-center transition border-b-2 text-[11px] ${
               inspectorTab === "vercel"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -888,13 +1053,23 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("stitch")}
-            className={`py-2 text-center transition border-b-2 ${
+            className={`py-2 text-center transition border-b-2 text-[11px] ${
               inspectorTab === "stitch"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
             }`}
           >
             Stitch
+          </button>
+          <button
+            onClick={() => setInspectorTab("commands")}
+            className={`py-2 text-center transition border-b-2 text-[11px] ${
+              inspectorTab === "commands"
+                ? "border-white text-white bg-[#0e0e0e]"
+                : "border-transparent text-[#666666] hover:text-[#cccccc]"
+            }`}
+          >
+            Cmds
           </button>
         </div>
 
@@ -1056,6 +1231,57 @@ export default function Home() {
               ))}
             </div>
           )}
+
+          {/* Tab 4: Commands (Bot Slash Commands List) */}
+          {inspectorTab === "commands" && (
+            <div className="space-y-3">
+              <div className="text-[11px] uppercase tracking-wider text-[#666666] flex items-center justify-between">
+                <span>Bot Commands</span>
+                <span className="text-[10px] text-[#10b981]">
+                  {TELEGRAM_COMMANDS.length} Available
+                </span>
+              </div>
+
+              {/* Filter search */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Filter command..."
+                  value={commandFilterQuery}
+                  onChange={(e) => setCommandFilterQuery(e.target.value)}
+                  className="w-full bg-[#0a0a0a] border border-[#1f1f1f] rounded px-2.5 py-1.5 text-xs text-[#ededed] placeholder-[#555555] focus:outline-none focus:border-[#333333]"
+                />
+              </div>
+
+              {/* Commands List */}
+              <div className="space-y-1.5">
+                {filteredInspectorCommands.map((cmd, i) => (
+                  <div
+                    key={i}
+                    className="p-2 rounded border border-[#1a1a1a] bg-[#0a0a0a] hover:border-[#2a2a2a] transition flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-white font-medium text-xs">{cmd.command}</span>
+                        <span className="text-[8px] px-1 py-0.2 rounded bg-[#111111] text-[#777777] border border-[#222222] uppercase">
+                          {cmd.category}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-[#777777] truncate mt-0.5">
+                        {cmd.description}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => sendMessage(cmd.command)}
+                      className="px-2 py-1 rounded bg-[#141414] hover:bg-white hover:text-black text-[#cccccc] text-[10px] font-medium transition shrink-0"
+                    >
+                      Run
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -1074,7 +1300,7 @@ export default function Home() {
               <input
                 type="text"
                 autoFocus
-                placeholder="Ketik perintah atau navigasi..."
+                placeholder="Ketik command (/status, /diff, /new, /model...)..."
                 value={commandQuery}
                 onChange={(e) => setCommandQuery(e.target.value)}
                 className="w-full bg-transparent text-xs text-[#ededed] placeholder-[#555555] focus:outline-none"
@@ -1084,20 +1310,20 @@ export default function Home() {
               </kbd>
             </div>
 
-            <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
-              {filteredCommands.length === 0 ? (
+            <div className="max-h-80 overflow-y-auto p-1.5 space-y-1">
+              {filteredPaletteCommands.length === 0 ? (
                 <div className="p-4 text-center text-xs text-[#666666]">
-                  Tidak ada perintah yang cocok
+                  Tidak ada command yang cocok
                 </div>
               ) : (
-                filteredCommands.map((cmd, i) => (
+                filteredPaletteCommands.map((cmd, i) => (
                   <button
                     key={i}
                     onClick={cmd.action}
                     className="w-full text-left px-3 py-2 rounded text-xs hover:bg-[#141414] flex items-center justify-between text-[#cccccc] hover:text-white transition group"
                   >
-                    <span>{cmd.label}</span>
-                    <span className="text-[10px] text-[#555555] group-hover:text-[#888888] uppercase">
+                    <span className="truncate pr-2">{cmd.label}</span>
+                    <span className="text-[10px] text-[#555555] group-hover:text-[#888888] uppercase shrink-0">
                       {cmd.category}
                     </span>
                   </button>
