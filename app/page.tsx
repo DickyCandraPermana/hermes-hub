@@ -5,22 +5,24 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Send,
-  Sparkles,
-  Bot,
-  User,
+  Terminal,
   Calendar,
   Mail,
-  GitBranch,
   Cloud,
-  Palette,
-  Terminal,
-  RefreshCw,
-  Copy,
+  Layers,
+  Search,
   Check,
+  Copy,
   ChevronRight,
-  Menu,
+  ChevronLeft,
+  Sidebar as SidebarIcon,
+  PanelRight,
+  Plus,
+  RefreshCw,
+  ExternalLink,
+  Command,
   X,
-  Zap,
+  GitBranch,
 } from "lucide-react";
 
 interface Message {
@@ -29,9 +31,12 @@ interface Message {
   timestamp: string;
 }
 
-interface CalendarEvent {
-  summary?: string;
-  start?: { dateTime?: string; date?: string };
+interface WorkspaceData {
+  calendar: any[];
+  emails: any[];
+  deployments: any[];
+  stitch: any[];
+  github: any[];
 }
 
 export default function Home() {
@@ -39,13 +44,64 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  // Panels state
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<"agenda" | "vercel" | "stitch">("agenda");
+
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+
+  // Workspace data
+  const [workspace, setWorkspace] = useState<WorkspaceData>({
+    calendar: [],
+    emails: [],
+    deployments: [],
+    stitch: [],
+    github: [],
+  });
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Fetch workspace status & inspector data
+  const fetchWorkspaceData = async () => {
+    setWorkspaceLoading(true);
+    try {
+      const res = await fetch("/api/workspace");
+      if (res.ok) {
+        const data = await res.json();
+        setWorkspace(data);
+      }
+    } catch (e) {
+      console.error("Fetch workspace error:", e);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkspaceData();
+  }, []);
+
+  // Keyboard shortcut for Cmd+K and Esc
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      } else if (e.key === "Escape") {
+        setCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Scroll chat to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -54,117 +110,114 @@ export default function Home() {
     scrollToBottom();
   }, [messages, loading]);
 
+  // Adjust textarea height dynamically
   useEffect(() => {
-    fetchCalendar();
-  }, []);
-
-  const fetchCalendar = async () => {
-    setCalendarLoading(true);
-    try {
-      const res = await fetch("/api/calendar");
-      const data = await res.json();
-      setCalendarEvents(data.events || []);
-    } catch {
-      // ignore
-    } finally {
-      setCalendarLoading(false);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(
+        textareaRef.current.scrollHeight,
+        200
+      )}px`;
     }
-  };
+  }, [input]);
 
-  const handleSend = async (overridePrompt?: string) => {
-    const textToSend = overridePrompt || input;
+  // Handle message sending with SSE streaming
+  const sendMessage = async (overrideText?: string) => {
+    const textToSend = overrideText || input;
     if (!textToSend.trim() || loading) return;
 
-    const userMsg: Message = {
+    const time = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const userMessage: Message = {
       role: "user",
-      content: textToSend.trim(),
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      content: textToSend,
+      timestamp: time,
     };
 
-    const newMessages = [...messages, userMsg];
+    const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-    if (!overridePrompt) setInput("");
+    if (!overrideText) setInput("");
     setLoading(true);
 
-    const assistantMsg: Message = {
+    const assistantMessage: Message = {
       role: "assistant",
       content: "",
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     };
 
-    setMessages([...newMessages, assistantMsg]);
+    setMessages([...newMessages, assistantMessage]);
 
     try {
-      const response = await fetch("/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: newMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(await response.text());
+      if (!res.ok) {
+        throw new Error(`Server returned ${res.status}`);
       }
 
-      if (!response.body) throw new Error("No body");
+      if (!res.body) {
+        throw new Error("No response body received");
+      }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = "";
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let done = false;
+      let accumulatedContent = "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr === "[DONE]") continue;
-
-            try {
-              const parsed = JSON.parse(dataStr);
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) {
-                accumulated += delta;
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataStr = line.replace("data: ", "").trim();
+              if (dataStr === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(dataStr);
+                const delta = parsed.choices?.[0]?.delta?.content || "";
+                accumulatedContent += delta;
                 setMessages((prev) => {
                   const updated = [...prev];
-                  updated[updated.length - 1] = {
-                    ...updated[updated.length - 1],
-                    content: accumulated,
-                  };
+                  const last = updated[updated.length - 1];
+                  if (last && last.role === "assistant") {
+                    last.content = accumulatedContent;
+                  }
                   return updated;
                 });
+              } catch {
+                // Ignore parse errors from chunk boundaries
               }
-            } catch {
-              // ignore partial json
             }
           }
         }
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Gagal menghubungi agen.";
+    } catch (err: any) {
       setMessages((prev) => {
         const updated = [...prev];
-        updated[updated.length - 1] = {
-          ...updated[updated.length - 1],
-          content: `⚠️ Terjadi kesalahan: ${message}`,
-        };
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant") {
+          last.content = `[Gagal terhubung ke Hermes: ${err.message}]`;
+        }
         return updated;
       });
     } finally {
       setLoading(false);
-      setTimeout(() => textareaRef.current?.focus(), 50);
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
     }
   };
 
@@ -174,337 +227,704 @@ export default function Home() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
+  // Commands for palette
+  const commands = [
+    {
+      label: "Briefing Pagi (Kalender & Gmail)",
+      category: "Action",
+      action: () => {
+        setCommandPaletteOpen(false);
+        sendMessage("Cek jadwal Google Calendar hari ini dan email unread terbaru di Gmail.");
+      },
+    },
+    {
+      label: "Cek Status Deployment Vercel",
+      category: "Action",
+      action: () => {
+        setCommandPaletteOpen(false);
+        sendMessage("Cek status semua deployment project Vercel saya saat ini.");
+      },
+    },
+    {
+      label: "Tampilkan Screen Nutritrack (Google Stitch)",
+      category: "Design",
+      action: () => {
+        setCommandPaletteOpen(false);
+        sendMessage("Jelaskan 5 screen di project Nutritrack Design System di Stitch dan token warnanya.");
+      },
+    },
+    {
+      label: "Buka Inspector Deck: Agenda",
+      category: "View",
+      action: () => {
+        setCommandPaletteOpen(false);
+        setInspectorOpen(true);
+        setInspectorTab("agenda");
+      },
+    },
+    {
+      label: "Buka Inspector Deck: Vercel",
+      category: "View",
+      action: () => {
+        setCommandPaletteOpen(false);
+        setInspectorOpen(true);
+        setInspectorTab("vercel");
+      },
+    },
+    {
+      label: "Buka Inspector Deck: Stitch Screens",
+      category: "View",
+      action: () => {
+        setCommandPaletteOpen(false);
+        setInspectorOpen(true);
+        setInspectorTab("stitch");
+      },
+    },
+    {
+      label: "Clear Chat / New Thread",
+      category: "Session",
+      action: () => {
+        setCommandPaletteOpen(false);
+        setMessages([]);
+      },
+    },
+  ];
+
+  const filteredCommands = commands.filter((c) =>
+    c.label.toLowerCase().includes(commandQuery.toLowerCase())
+  );
+
   return (
-    <div className="flex h-screen bg-[#070b12] text-slate-100 overflow-hidden font-sans">
-      {/* Sidebar */}
+    <div className="flex h-screen w-screen overflow-hidden bg-black text-[#ededed] font-sans antialiased selection:bg-[#333333] selection:text-white">
+      {/* 1. LEFT SIDEBAR */}
       <aside
         className={`${
-          sidebarOpen ? "w-80" : "w-0 -translate-x-full"
-        } transition-all duration-300 ease-in-out bg-[#0c1220] border-r border-slate-800/80 flex flex-col z-30 shrink-0 md:relative absolute h-full`}
+          sidebarOpen ? "w-64" : "w-0"
+        } transition-all duration-200 ease-in-out border-r border-[#1a1a1a] bg-[#050505] flex flex-col justify-between overflow-hidden shrink-0 z-20`}
       >
-        {/* Sidebar Header */}
-        <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Bot className="w-4 h-4 text-slate-950 font-bold" />
-            </div>
-            <div>
-              <h1 className="font-semibold text-sm tracking-wide text-white">Hermes Hub</h1>
-              <p className="text-[10px] text-emerald-400 font-mono">● LIVE RUNTIME</p>
-            </div>
-          </div>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="md:hidden p-1.5 text-slate-400 hover:text-white"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Sidebar Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          {/* Quick Actions */}
-          <div>
-            <h2 className="text-[11px] font-semibold text-slate-400 tracking-wider uppercase mb-2.5">
-              Quick Shortcuts
-            </h2>
-            <div className="space-y-1.5">
-              {[
-                {
-                  label: "Briefing Jadwal & Email Hari Ini",
-                  icon: Calendar,
-                  prompt: "Berikan ringkasan briefing jadwal hari ini dari Google Calendar dan email masuk terbaru.",
-                },
-                {
-                  label: "Cek Status Deployment Vercel",
-                  icon: Cloud,
-                  prompt: "Cek status deployment project saya di Vercel saat ini.",
-                },
-                {
-                  label: "Cek Repositori GitHub",
-                  icon: GitBranch,
-                  prompt: "Tampilkan update terbaru dari repo github saya.",
-                },
-                {
-                  label: "Review Design System (Stitch)",
-                  icon: Palette,
-                  prompt: "Tampilkan screen dan tokens dari project Nutritrack Design System di Google Stitch.",
-                },
-              ].map((item, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSend(item.prompt)}
-                  className="w-full text-left p-2.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-xs text-slate-300 hover:text-emerald-300 transition flex items-center gap-2.5 group"
-                >
-                  <item.icon className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-400 shrink-0" />
-                  <span className="truncate flex-1">{item.label}</span>
-                  <ChevronRight className="w-3 h-3 text-slate-600 group-hover:text-emerald-400 shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Connected Services */}
-          <div>
-            <h2 className="text-[11px] font-semibold text-slate-400 tracking-wider uppercase mb-2.5">
-              Connected Infrastructure
-            </h2>
-            <div className="space-y-2">
-              {[
-                { name: "Google Calendar & Mail", status: "Connected", icon: Mail },
-                { name: "GitHub CLI (`gh`)", status: "Active", icon: GitBranch },
-                { name: "Vercel Deployments", status: "Connected", icon: Cloud },
-                { name: "Google Stitch MCP", status: "Connected", icon: Palette },
-                { name: "Neon Postgres / Supabase", status: "Available", icon: Terminal },
-              ].map((svc, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between p-2 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs"
-                >
-                  <div className="flex items-center gap-2">
-                    <svc.icon className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-slate-300">{svc.name}</span>
-                  </div>
-                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                    {svc.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Google Calendar Snippet */}
-          <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                Agenda Google
+        <div className="flex flex-col h-full">
+          {/* Top Brand Bar */}
+          <div className="h-12 px-4 border-b border-[#1a1a1a] flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-white text-xs font-mono font-medium tracking-widest uppercase">
+                ▲ HERMES
               </span>
-              <button
-                onClick={fetchCalendar}
-                className="p-1 hover:text-white text-slate-400 transition"
-              >
-                <RefreshCw className={`w-3 h-3 ${calendarLoading ? "animate-spin" : ""}`} />
-              </button>
+              <span className="text-[10px] font-mono text-[#888888] border border-[#222222] px-1.5 py-0.5 rounded">
+                CLI/API
+              </span>
             </div>
-            {calendarEvents.length === 0 ? (
-              <p className="text-[11px] text-slate-400 italic">Tidak ada agenda dalam 7 hari ke depan.</p>
-            ) : (
-              <div className="space-y-1.5">
-                {calendarEvents.slice(0, 3).map((ev, idx) => (
-                  <div key={idx} className="text-[11px] p-1.5 bg-slate-800/50 rounded border border-slate-700/50">
-                    <p className="font-medium text-slate-200">{ev.summary}</p>
-                    <p className="text-[10px] text-slate-400">{ev.start?.dateTime || ev.start?.date}</p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="text-[#666666] hover:text-[#ededed] p-1 transition"
+              title="Close sidebar"
+            >
+              <ChevronLeft size={16} />
+            </button>
           </div>
-        </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-3 border-t border-slate-800 flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-emerald-400">
-            DP
+          {/* New Thread CTA */}
+          <div className="p-3">
+            <button
+              onClick={() => setMessages([])}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono bg-[#0c0c0c] hover:bg-[#141414] border border-[#1f1f1f] hover:border-[#333333] text-[#ededed] rounded transition"
+            >
+              <span className="flex items-center gap-2">
+                <Plus size={14} className="text-[#888888]" />
+                New Thread
+              </span>
+              <span className="text-[10px] text-[#555555]">⌘N</span>
+            </button>
           </div>
-          <div className="flex-1 truncate">
-            <p className="text-xs font-medium text-slate-200 truncate">Dicky Candra Permana</p>
-            <p className="text-[10px] text-slate-400 truncate">candrapermanadicky@gmail.com</p>
+
+          {/* Thread List / History */}
+          <div className="flex-1 overflow-y-auto px-3 space-y-1">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-[#555555] px-2 py-1">
+              Active Context
+            </div>
+            <button className="w-full text-left px-2.5 py-2 rounded text-xs border border-[#262626] bg-[#111111] text-white font-medium truncate flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] shrink-0" />
+              <span>General Session</span>
+            </button>
+          </div>
+
+          {/* Connected Services Stack (Restrained Monochrome) */}
+          <div className="border-t border-[#1a1a1a] p-3 space-y-2 bg-[#050505]">
+            <div className="text-[10px] font-mono uppercase tracking-wider text-[#555555] px-1 flex items-center justify-between">
+              <span>Environment</span>
+              <span className="text-[#10b981] flex items-center gap-1 font-mono text-[9px]">
+                <span className="w-1 h-1 rounded-full bg-[#10b981]" />
+                ONLINE
+              </span>
+            </div>
+
+            <div className="space-y-1.5 font-mono text-[11px] text-[#888888]">
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-[#0a0a0a] border border-[#141414]">
+                <span className="flex items-center gap-1.5 text-[#cccccc]">
+                  <Mail size={12} className="text-[#888888]" /> Google WS
+                </span>
+                <span className="text-[10px] text-[#10b981]">Linked</span>
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-[#0a0a0a] border border-[#141414]">
+                <span className="flex items-center gap-1.5 text-[#cccccc]">
+                  <Cloud size={12} className="text-[#888888]" /> Vercel
+                </span>
+                <span className="text-[10px] text-[#10b981]">5 Ready</span>
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-[#0a0a0a] border border-[#141414]">
+                <span className="flex items-center gap-1.5 text-[#cccccc]">
+                  <Layers size={12} className="text-[#888888]" /> Stitch MCP
+                </span>
+                <span className="text-[10px] text-[#10b981]">2 Projects</span>
+              </div>
+
+              <div className="flex items-center justify-between px-2 py-1 rounded bg-[#0a0a0a] border border-[#141414]">
+                <span className="flex items-center gap-1.5 text-[#cccccc]">
+                  <GitBranch size={12} className="text-[#888888]" /> GitHub CLI
+                </span>
+                <span className="text-[10px] text-[#10b981]">Auth'd</span>
+              </div>
+            </div>
+
+            {/* User identifier */}
+            <div className="pt-1 border-t border-[#141414] flex items-center justify-between text-xs text-[#888888]">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-full bg-[#1a1a1a] text-[10px] font-mono flex items-center justify-center text-white border border-[#2a2a2a]">
+                  DP
+                </div>
+                <span className="text-[11px] text-[#cccccc] font-medium">Dicky Candra</span>
+              </div>
+              <span className="text-[10px] font-mono text-[#555555]">v2026.10</span>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Chat Interface */}
-      <main className="flex-1 flex flex-col h-full bg-[#070b12] relative overflow-hidden">
-        {/* Top Navigation */}
-        <header className="h-14 border-b border-slate-800/80 bg-[#090e18]/80 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-20">
+      {/* 2. MAIN CENTER CONSOLE */}
+      <main className="flex-1 flex flex-col h-full min-w-0 bg-black relative">
+        {/* Top Hairline Header */}
+        <header className="h-12 border-b border-[#1a1a1a] px-4 flex items-center justify-between shrink-0 bg-black/90 backdrop-blur z-10">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-slate-100">Hermes Autonomous Agent</span>
-                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  Ready
-                </span>
-              </div>
-              <p className="text-[10px] text-slate-400">Model: hermes-combo • Protocol: OpenAI Stream</p>
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="text-[#888888] hover:text-white p-1 rounded hover:bg-[#111111] transition"
+                title="Open sidebar"
+              >
+                <SidebarIcon size={16} />
+              </button>
+            )}
+            <div className="flex items-center gap-2 font-mono text-xs">
+              <span className="w-2 h-2 rounded-full bg-[#10b981]" />
+              <span className="text-[#ededed] font-medium">hermes-gateway</span>
+              <span className="text-[#555555]">:8642</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Quick Command Trigger */}
             <button
-              onClick={() => setMessages([])}
-              className="px-2.5 py-1 text-xs text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition"
+              onClick={() => setCommandPaletteOpen(true)}
+              className="flex items-center gap-2 px-2.5 py-1 rounded text-xs font-mono bg-[#0c0c0c] hover:bg-[#141414] border border-[#1f1f1f] text-[#888888] hover:text-[#ededed] transition"
             >
-              Reset Chat
+              <Command size={12} />
+              <span>Search commands</span>
+              <kbd className="text-[10px] bg-[#1a1a1a] text-[#aaaaaa] px-1 py-0.2 rounded border border-[#262626]">
+                ⌘K
+              </kbd>
+            </button>
+
+            {/* Toggle Inspector Deck */}
+            <button
+              onClick={() => setInspectorOpen(!inspectorOpen)}
+              className={`p-1.5 rounded border transition flex items-center gap-1.5 text-xs font-mono ${
+                inspectorOpen
+                  ? "bg-[#161616] border-[#333333] text-white"
+                  : "bg-transparent border-[#1f1f1f] text-[#888888] hover:text-white hover:border-[#2a2a2a]"
+              }`}
+              title="Toggle Inspector"
+            >
+              <PanelRight size={14} />
+              <span className="hidden sm:inline">Inspector</span>
             </button>
           </div>
         </header>
 
-        {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        {/* Chat / Operate Stream */}
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
           {messages.length === 0 ? (
-            <div className="max-w-xl mx-auto my-auto text-center py-16 space-y-6">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-600/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-2xl shadow-emerald-950">
-                <Zap className="w-8 h-8 text-emerald-400" />
-              </div>
+            /* Clean Empty State: True Operate Surface, Zero Marketing Slop */
+            <div className="max-w-2xl mx-auto mt-16 text-center space-y-6">
               <div className="space-y-2">
-                <h2 className="text-xl font-bold text-white tracking-tight">Halo, Dicky!</h2>
-                <p className="text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
-                  Ini adalah personal cockpit Hermes Anda. Terhubung langsung ke mesin server, GitHub,
-                  Vercel, Google Calendar, dan Stitch.
+                <div className="text-xs font-mono tracking-widest text-[#666666] uppercase">
+                  Terminal Mode
+                </div>
+                <h1 className="text-xl md:text-2xl font-medium tracking-tight text-white">
+                  Hermes Autonomous Workspace
+                </h1>
+                <p className="text-xs md:text-sm text-[#888888] max-w-md mx-auto leading-relaxed">
+                  Interaksi langsung dengan runtime server, Google Cloud Workspace, Vercel deployments, dan Stitch MCP.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-4">
-                {[
-                  {
-                    title: "📅 Daily Briefing",
-                    desc: "Cek jadwal Google Calendar & email masuk terbaru.",
-                    prompt: "Tolong berikan briefing agenda jadwal dan email hari ini.",
-                  },
-                  {
-                    title: "🚀 Status Vercel",
-                    desc: "Periksa status build & deployment semua project.",
-                    prompt: "Bagaimana status deployment project saya di Vercel saat ini?",
-                  },
-                  {
-                    title: "🎨 Google Stitch Design",
-                    desc: "Akses design tokens & screen Nutritrack.",
-                    prompt: "Tampilkan screen dan tokens dari project Nutritrack Design System di Stitch.",
-                  },
-                  {
-                    title: "💻 Git & Terminal",
-                    desc: "Periksa repositori atau jalankan perintah di server.",
-                    prompt: "Bantu saya inspect status git dan repo aktif saat ini.",
-                  },
-                ].map((card, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleSend(card.prompt)}
-                    className="p-3.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-emerald-500/40 hover:bg-slate-800/60 transition group text-left"
-                  >
-                    <p className="font-semibold text-xs text-slate-200 group-hover:text-emerald-300">
-                      {card.title}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{card.desc}</p>
-                  </button>
-                ))}
+              {/* Minimalist prompt suggestions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left pt-4 max-w-lg mx-auto">
+                <button
+                  onClick={() =>
+                    sendMessage(
+                      "Cek jadwal Google Calendar hari ini dan email unread terbaru di Gmail."
+                    )
+                  }
+                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
+                >
+                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
+                    <span>Google Workspace</span>
+                    <span className="text-[#555555] font-mono text-[10px]">01</span>
+                  </div>
+                  <div className="text-[11px] text-[#666666] mt-1">
+                    Cek agenda Calendar & unread Gmail
+                  </div>
+                </button>
+
+                <button
+                  onClick={() =>
+                    sendMessage(
+                      "Cek status deployment semua project Vercel saya dan laporkan domain aktifnya."
+                    )
+                  }
+                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
+                >
+                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
+                    <span>Vercel Projects</span>
+                    <span className="text-[#555555] font-mono text-[10px]">02</span>
+                  </div>
+                  <div className="text-[11px] text-[#666666] mt-1">
+                    Cek status production & domain live
+                  </div>
+                </button>
+
+                <button
+                  onClick={() =>
+                    sendMessage(
+                      "Tampilkan 5 screen di project Nutritrack Design System di Stitch dan ringkas layoutnya."
+                    )
+                  }
+                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
+                >
+                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
+                    <span>Google Stitch</span>
+                    <span className="text-[#555555] font-mono text-[10px]">03</span>
+                  </div>
+                  <div className="text-[11px] text-[#666666] mt-1">
+                    Inspect Nutritrack screens & tokens
+                  </div>
+                </button>
+
+                <button
+                  onClick={() =>
+                    sendMessage(
+                      "Jelaskan arsitektur kode client ini dan bagaimana ia melakukan SSE stream ke port 8642."
+                    )
+                  }
+                  className="p-3 rounded border border-[#1a1a1a] hover:border-[#333333] bg-[#080808] hover:bg-[#0f0f0f] transition group"
+                >
+                  <div className="text-xs font-mono text-[#cccccc] group-hover:text-white flex items-center justify-between">
+                    <span>System Runtime</span>
+                    <span className="text-[#555555] font-mono text-[10px]">04</span>
+                  </div>
+                  <div className="text-[11px] text-[#666666] mt-1">
+                    Inspect local API SSE gateway
+                  </div>
+                </button>
               </div>
             </div>
           ) : (
-            messages.map((msg, index) => (
-              <div
-                key={index}
-                className={`flex gap-3 max-w-3xl ${
-                  msg.role === "user" ? "ml-auto justify-end" : "mr-auto justify-start"
-                }`}
-              >
-                {msg.role === "assistant" && (
-                  <div className="w-7 h-7 rounded-lg bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="max-w-3xl mx-auto space-y-6">
+              {messages.map((msg, idx) => (
+                <div key={idx} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-mono text-[#555555] px-1">
+                    <span className="flex items-center gap-1.5">
+                      {msg.role === "user" ? (
+                        <span className="text-[#cccccc] font-medium">YOU</span>
+                      ) : (
+                        <span className="text-white font-medium flex items-center gap-1">
+                          <span>▲</span> HERMES
+                        </span>
+                      )}
+                    </span>
+                    <span>{msg.timestamp}</span>
                   </div>
-                )}
 
-                <div
-                  className={`relative group rounded-2xl px-4 py-3 text-sm max-w-[85%] sm:max-w-xl ${
-                    msg.role === "user"
-                      ? "bg-emerald-600 text-white rounded-br-none shadow-md shadow-emerald-950/20"
-                      : "bg-[#0f172a] border border-slate-800/90 text-slate-200 rounded-bl-none shadow-sm"
-                  }`}
-                >
-                  {msg.role === "assistant" ? (
+                  <div
+                    className={`rounded-md p-4 transition text-sm ${
+                      msg.role === "user"
+                        ? "bg-[#0a0a0a] border border-[#1f1f1f] text-[#ededed]"
+                        : "bg-transparent border border-[#141414] text-[#d4d4d4]"
+                    }`}
+                  >
                     <div className="markdown-body">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content || "..."}
+                        {msg.content || (loading && idx === messages.length - 1 ? "..." : "")}
                       </ReactMarkdown>
                     </div>
-                  ) : (
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  )}
 
-                  <div className="flex items-center justify-between gap-4 mt-1.5 pt-1 border-t border-slate-700/30 text-[10px] text-slate-400">
-                    <span>{msg.timestamp}</span>
                     {msg.role === "assistant" && msg.content && (
-                      <button
-                        onClick={() => copyToClipboard(msg.content, index)}
-                        className="hover:text-white flex items-center gap-1 opacity-0 group-hover:opacity-100 transition"
-                      >
-                        {copiedIndex === index ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-400" /> Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" /> Copy
-                          </>
-                        )}
-                      </button>
+                      <div className="mt-3 pt-2 border-t border-[#141414] flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => copyToClipboard(msg.content, idx)}
+                          className="flex items-center gap-1 text-[11px] font-mono text-[#666666] hover:text-[#cccccc] transition px-1.5 py-0.5 rounded hover:bg-[#111111]"
+                        >
+                          {copiedIndex === idx ? (
+                            <>
+                              <Check size={11} className="text-[#10b981]" />
+                              <span>COPIED</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={11} />
+                              <span>COPY</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
-
-                {msg.role === "user" && (
-                  <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 mt-0.5">
-                    <User className="w-3.5 h-3.5 text-slate-300" />
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-
-          {loading && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex gap-3 max-w-3xl mr-auto items-center text-xs text-slate-400">
-              <div className="w-7 h-7 rounded-lg bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center shrink-0 animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              </div>
-              <span className="italic">Hermes sedang memproses respon...</span>
+              ))}
+              <div ref={messagesEndRef} />
             </div>
           )}
-
-          <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Bar */}
-        <div className="p-4 border-t border-slate-800/80 bg-[#090e18]/80 backdrop-blur-md shrink-0">
+        {/* Bottom Dock Input Bar */}
+        <div className="p-4 border-t border-[#1a1a1a] bg-black shrink-0">
           <div className="max-w-3xl mx-auto">
-            <div className="relative rounded-2xl bg-[#0e1626] border border-slate-700/70 focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/30 transition shadow-lg">
+            <div className="bg-[#080808] border border-[#1f1f1f] focus-within:border-[#333333] rounded-lg p-2.5 transition flex flex-col gap-2">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Ketik instruksi, tanya agenda, cek deployment, atau minta buatkan kode..."
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+                placeholder="Tulis pesan atau instruksi untuk Hermes..."
                 rows={1}
-                className="w-full bg-transparent px-4 py-3.5 text-sm text-slate-100 placeholder-slate-400 focus:outline-none resize-none max-h-36 overflow-y-auto"
-                style={{ minHeight: "48px" }}
+                disabled={loading}
+                className="w-full bg-transparent text-sm text-[#ededed] placeholder-[#555555] focus:outline-none resize-none leading-relaxed"
               />
-              <div className="flex items-center justify-between px-3 pb-2 pt-1 border-t border-slate-800/50">
-                <span className="text-[10px] text-slate-500">
-                  <kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400 font-mono">Enter</kbd> kirim • <kbd className="px-1 py-0.5 bg-slate-800 rounded text-slate-400 font-mono">Shift+Enter</kbd> baris baru
-                </span>
-                <button
-                  onClick={() => handleSend()}
-                  disabled={!input.trim() || loading}
-                  className={`p-2 rounded-xl transition ${
-                    input.trim() && !loading
-                      ? "bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-md shadow-emerald-500/20"
-                      : "bg-slate-800 text-slate-500 cursor-not-allowed"
-                  }`}
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+
+              <div className="flex items-center justify-between pt-1 border-t border-[#141414] text-[11px] font-mono text-[#555555]">
+                <div className="flex items-center gap-3">
+                  <span>Enter to send</span>
+                  <span className="hidden sm:inline">Shift+Enter newline</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => sendMessage()}
+                    disabled={loading || !input.trim()}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono font-medium transition ${
+                      input.trim() && !loading
+                        ? "bg-white text-black hover:bg-[#e0e0e0]"
+                        : "bg-[#141414] text-[#444444] cursor-not-allowed"
+                    }`}
+                  >
+                    {loading ? (
+                      <>
+                        <RefreshCw size={12} className="animate-spin" />
+                        <span>STREAMING</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send size={12} />
+                        <span>SEND</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      {/* 3. RIGHT COLLAPSIBLE INSPECTOR DECK */}
+      <aside
+        className={`${
+          inspectorOpen ? "w-80" : "w-0"
+        } transition-all duration-200 ease-in-out border-l border-[#1a1a1a] bg-[#050505] flex flex-col overflow-hidden shrink-0 z-20`}
+      >
+        <div className="h-12 px-4 border-b border-[#1a1a1a] flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 text-xs font-mono text-[#888888]">
+            <PanelRight size={14} />
+            <span className="text-white font-medium uppercase tracking-wider">Inspector</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={fetchWorkspaceData}
+              disabled={workspaceLoading}
+              className="text-[#666666] hover:text-white p-1 transition"
+              title="Refresh data"
+            >
+              <RefreshCw size={14} className={workspaceLoading ? "animate-spin" : ""} />
+            </button>
+            <button
+              onClick={() => setInspectorOpen(false)}
+              className="text-[#666666] hover:text-white p-1 transition"
+              title="Close panel"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="grid grid-cols-3 border-b border-[#1a1a1a] text-xs font-mono bg-[#080808]">
+          <button
+            onClick={() => setInspectorTab("agenda")}
+            className={`py-2 text-center transition border-b-2 ${
+              inspectorTab === "agenda"
+                ? "border-white text-white bg-[#0e0e0e]"
+                : "border-transparent text-[#666666] hover:text-[#cccccc]"
+            }`}
+          >
+            Agenda
+          </button>
+          <button
+            onClick={() => setInspectorTab("vercel")}
+            className={`py-2 text-center transition border-b-2 ${
+              inspectorTab === "vercel"
+                ? "border-white text-white bg-[#0e0e0e]"
+                : "border-transparent text-[#666666] hover:text-[#cccccc]"
+            }`}
+          >
+            Vercel
+          </button>
+          <button
+            onClick={() => setInspectorTab("stitch")}
+            className={`py-2 text-center transition border-b-2 ${
+              inspectorTab === "stitch"
+                ? "border-white text-white bg-[#0e0e0e]"
+                : "border-transparent text-[#666666] hover:text-[#cccccc]"
+            }`}
+          >
+            Stitch
+          </button>
+        </div>
+
+        {/* Inspector Tab Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-mono">
+          {inspectorTab === "agenda" && (
+            <div className="space-y-4">
+              {/* Google Calendar Section */}
+              <div className="space-y-2">
+                <div className="text-[11px] uppercase tracking-wider text-[#666666] flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[#cccccc]">
+                    <Calendar size={12} /> Today's Agenda
+                  </span>
+                  <span className="text-[10px] text-[#555555]">
+                    {workspace.calendar.length} events
+                  </span>
+                </div>
+                {workspace.calendar.length === 0 ? (
+                  <div className="p-3 rounded border border-[#141414] bg-[#0a0a0a] text-[#666666] text-center text-[11px]">
+                    Tidak ada agenda kalender hari ini
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {workspace.calendar.map((ev, i) => (
+                      <div
+                        key={i}
+                        className="p-2.5 rounded border border-[#1a1a1a] bg-[#0a0a0a] text-[#ededed]"
+                      >
+                        <div className="font-medium truncate">{ev.summary}</div>
+                        <div className="text-[10px] text-[#666666] mt-0.5">
+                          {ev.start?.dateTime || ev.start?.date || "All Day"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Gmail Unread Section */}
+              <div className="space-y-2 pt-2 border-t border-[#141414]">
+                <div className="text-[11px] uppercase tracking-wider text-[#666666] flex items-center justify-between">
+                  <span className="flex items-center gap-1.5 text-[#cccccc]">
+                    <Mail size={12} /> Unread Emails
+                  </span>
+                  <span className="text-[10px] text-[#10b981]">
+                    {workspace.emails.length} new
+                  </span>
+                </div>
+                {workspace.emails.length === 0 ? (
+                  <div className="p-3 rounded border border-[#141414] bg-[#0a0a0a] text-[#666666] text-center text-[11px]">
+                    Inbox bersih (tidak ada unread)
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {workspace.emails.map((m, i) => (
+                      <div
+                        key={i}
+                        className="p-2.5 rounded border border-[#1a1a1a] bg-[#0a0a0a] space-y-1"
+                      >
+                        <div className="text-white font-medium truncate text-[11px]">
+                          {m.subject || "(No Subject)"}
+                        </div>
+                        <div className="text-[10px] text-[#888888] truncate">
+                          {m.from}
+                        </div>
+                        <div className="text-[10px] text-[#555555] line-clamp-2 leading-relaxed">
+                          {m.snippet}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {inspectorTab === "vercel" && (
+            <div className="space-y-3">
+              <div className="text-[11px] uppercase tracking-wider text-[#666666] flex items-center justify-between">
+                <span>Production Deployments</span>
+                <span className="text-[10px] text-[#10b981]">
+                  {workspace.deployments.length} Active
+                </span>
+              </div>
+
+              {workspace.deployments.length === 0 ? (
+                <div className="p-3 rounded border border-[#141414] bg-[#0a0a0a] text-[#666666] text-center text-[11px]">
+                  Memuat status Vercel...
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {workspace.deployments.map((d, i) => (
+                    <div
+                      key={i}
+                      className="p-2.5 rounded border border-[#1a1a1a] bg-[#0a0a0a] space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-medium">{d.name}</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#064e3b] text-[#34d399] border border-[#059669]/30">
+                          {d.state}
+                        </span>
+                      </div>
+                      <a
+                        href={`https://${d.url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[#888888] hover:text-white flex items-center gap-1 truncate"
+                      >
+                        <ExternalLink size={10} />
+                        <span className="truncate">{d.url}</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {inspectorTab === "stitch" && (
+            <div className="space-y-4">
+              <div className="text-[11px] uppercase tracking-wider text-[#666666]">
+                Connected Stitch Projects
+              </div>
+
+              {workspace.stitch.map((proj, i) => (
+                <div
+                  key={i}
+                  className="p-3 rounded border border-[#1a1a1a] bg-[#0a0a0a] space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-white font-medium text-[11px]">
+                      {proj.name}
+                    </span>
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-[#111111] text-[#888888] border border-[#222222]">
+                      {proj.type}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="text-[10px] text-[#666666]">Screens ({proj.screens.length}):</div>
+                    <ul className="space-y-1 pl-1">
+                      {proj.screens.map((scr: string, sIdx: number) => (
+                        <li
+                          key={sIdx}
+                          onClick={() => {
+                            sendMessage(
+                              `Tampilkan detail screen "${scr}" dari project "${proj.name}" di Stitch.`
+                            );
+                          }}
+                          className="text-[11px] text-[#aaaaaa] hover:text-white cursor-pointer flex items-center gap-1.5 py-0.5 rounded hover:bg-[#141414] px-1"
+                        >
+                          <ChevronRight size={10} className="text-[#555555]" />
+                          <span className="truncate">{scr}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* 4. COMMAND PALETTE MODAL (CMD+K) */}
+      {commandPaletteOpen && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center pt-20 p-4"
+          onClick={() => setCommandPaletteOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg bg-[#080808] border border-[#222222] rounded-lg shadow-2xl overflow-hidden font-mono"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[#1a1a1a]">
+              <Search size={14} className="text-[#666666]" />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Ketik perintah atau navigasi..."
+                value={commandQuery}
+                onChange={(e) => setCommandQuery(e.target.value)}
+                className="w-full bg-transparent text-xs text-[#ededed] placeholder-[#555555] focus:outline-none"
+              />
+              <kbd className="text-[10px] bg-[#141414] text-[#666666] px-1.5 py-0.5 rounded border border-[#222222]">
+                ESC
+              </kbd>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
+              {filteredCommands.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[#666666]">
+                  Tidak ada perintah yang cocok
+                </div>
+              ) : (
+                filteredCommands.map((cmd, i) => (
+                  <button
+                    key={i}
+                    onClick={cmd.action}
+                    className="w-full text-left px-3 py-2 rounded text-xs hover:bg-[#141414] flex items-center justify-between text-[#cccccc] hover:text-white transition group"
+                  >
+                    <span>{cmd.label}</span>
+                    <span className="text-[10px] text-[#555555] group-hover:text-[#888888] uppercase">
+                      {cmd.category}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
