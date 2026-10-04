@@ -1095,11 +1095,11 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Tab Switcher - 6 Tabs (Agenda, Logs, Radar, Vercel, Stitch, Commands) */}
-        <div className="flex overflow-x-auto border-b border-[#1a1a1a] text-xs font-mono bg-[#080808] no-scrollbar">
+        {/* Tab Switcher - 6 Equal Tabs (Agenda, Logs, Radar, Vercel, Stitch, Commands) */}
+        <div className="grid grid-cols-6 border-b border-[#1a1a1a] text-xs font-mono bg-[#080808]">
           <button
             onClick={() => setInspectorTab("agenda")}
-            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
+            className={`py-2 text-center transition border-b-2 text-[10px] ${
               inspectorTab === "agenda"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1109,27 +1109,27 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("logs")}
-            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] flex items-center gap-1 ${
+            className={`py-2 text-center transition border-b-2 text-[10px] ${
               inspectorTab === "logs"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
             }`}
           >
-            <Database size={10} /> Logs
+            Logs
           </button>
           <button
             onClick={() => setInspectorTab("radar")}
-            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] flex items-center gap-1 ${
+            className={`py-2 text-center transition border-b-2 text-[10px] ${
               inspectorTab === "radar"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
             }`}
           >
-            <Radio size={10} /> Radar
+            Radar
           </button>
           <button
             onClick={() => setInspectorTab("vercel")}
-            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
+            className={`py-2 text-center transition border-b-2 text-[10px] ${
               inspectorTab === "vercel"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1139,7 +1139,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("stitch")}
-            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
+            className={`py-2 text-center transition border-b-2 text-[10px] ${
               inspectorTab === "stitch"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
@@ -1149,7 +1149,7 @@ export default function Home() {
           </button>
           <button
             onClick={() => setInspectorTab("commands")}
-            className={`px-3 py-2 text-center whitespace-nowrap transition border-b-2 text-[11px] ${
+            className={`py-2 text-center transition border-b-2 text-[10px] ${
               inspectorTab === "commands"
                 ? "border-white text-white bg-[#0e0e0e]"
                 : "border-transparent text-[#666666] hover:text-[#cccccc]"
