@@ -5,7 +5,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   Send,
-  Terminal,
   Calendar,
   Mail,
   Cloud,
@@ -23,12 +22,26 @@ import {
   Command,
   X,
   GitBranch,
+  Paperclip,
+  Image as ImageIcon,
+  FileText,
+  Trash2,
 } from "lucide-react";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachments?: { name: string; isImage: boolean; preview?: string }[];
+}
+
+interface AttachmentItem {
+  name: string;
+  type: string;
+  size: number;
+  isImage: boolean;
+  content: string; // text or base64 dataUrl
+  preview?: string;
 }
 
 interface WorkspaceData {
@@ -46,9 +59,13 @@ export default function Home() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   // Panels state
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTab, setInspectorTab] = useState<"agenda" | "vercel" | "stitch">("agenda");
+
+  // Attachments state
+  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Command palette state
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -66,6 +83,13 @@ export default function Home() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Responsive sidebar initial state
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setSidebarOpen(true);
+    }
+  }, []);
 
   // Fetch workspace status & inspector data
   const fetchWorkspaceData = async () => {
@@ -121,25 +145,97 @@ export default function Home() {
     }
   }, [input]);
 
+  // Handle file uploads
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      const isImg = file.type.startsWith("image/");
+      const reader = new FileReader();
+
+      if (isImg) {
+        reader.onload = (event) => {
+          const res = event.target?.result as string;
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              isImage: true,
+              content: res,
+              preview: res,
+            },
+          ]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        reader.onload = (event) => {
+          const res = event.target?.result as string;
+          setAttachments((prev) => [
+            ...prev,
+            {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              isImage: false,
+              content: res || `[File binary: ${file.name} (${file.size} bytes)]`,
+            },
+          ]);
+        };
+        reader.readAsText(file);
+      }
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
   // Handle message sending with SSE streaming
   const sendMessage = async (overrideText?: string) => {
     const textToSend = overrideText || input;
-    if (!textToSend.trim() || loading) return;
+    if ((!textToSend.trim() && attachments.length === 0) || loading) return;
 
     const time = new Date().toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
     });
 
+    // Build payload with attachments if present
+    let finalPrompt = textToSend.trim();
+    const currentAttachments = [...attachments];
+
+    if (currentAttachments.length > 0) {
+      currentAttachments.forEach((att) => {
+        if (att.isImage) {
+          finalPrompt += `\n\n[Lampiran Gambar: ${att.name}] (${att.content.slice(0, 100)}...)`;
+        } else {
+          finalPrompt += `\n\n--- Isi File: ${att.name} ---\n\`\`\`\n${att.content.slice(0, 8000)}\n\`\`\`\n`;
+        }
+      });
+    }
+
     const userMessage: Message = {
       role: "user",
-      content: textToSend,
+      content: textToSend.trim() || `[Mengirim ${currentAttachments.length} lampiran]`,
       timestamp: time,
+      attachments: currentAttachments.map((a) => ({
+        name: a.name,
+        isImage: a.isImage,
+        preview: a.preview,
+      })),
     };
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     if (!overrideText) setInput("");
+    setAttachments([]);
     setLoading(true);
 
     const assistantMessage: Message = {
@@ -158,9 +254,9 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({
+          messages: newMessages.map((m, idx) => ({
             role: m.role,
-            content: m.content,
+            content: idx === newMessages.length - 1 ? finalPrompt : m.content,
           })),
         }),
       });
@@ -295,12 +391,22 @@ export default function Home() {
   );
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-black text-[#ededed] font-sans antialiased selection:bg-[#333333] selection:text-white">
-      {/* 1. LEFT SIDEBAR */}
+    <div className="flex h-screen w-screen overflow-hidden bg-black text-[#ededed] font-sans antialiased selection:bg-[#333333] selection:text-white relative">
+      {/* Mobile Sidebar Backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/80 backdrop-blur-xs z-30 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* 1. LEFT SIDEBAR (Desktop relative, Mobile fixed drawer) */}
       <aside
         className={`${
-          sidebarOpen ? "w-64" : "w-0"
-        } transition-all duration-200 ease-in-out border-r border-[#1a1a1a] bg-[#050505] flex flex-col justify-between overflow-hidden shrink-0 z-20`}
+          sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-0"
+        } lg:translate-x-0 ${
+          sidebarOpen ? "lg:w-64" : "lg:w-0"
+        } fixed lg:relative inset-y-0 left-0 z-40 transition-all duration-200 ease-in-out border-r border-[#1a1a1a] bg-[#050505] flex flex-col justify-between overflow-hidden shrink-0`}
       >
         <div className="flex flex-col h-full">
           {/* Top Brand Bar */}
@@ -325,7 +431,10 @@ export default function Home() {
           {/* New Thread CTA */}
           <div className="p-3">
             <button
-              onClick={() => setMessages([])}
+              onClick={() => {
+                setMessages([]);
+                if (window.innerWidth < 1024) setSidebarOpen(false);
+              }}
               className="w-full flex items-center justify-between px-3 py-2 text-xs font-mono bg-[#0c0c0c] hover:bg-[#141414] border border-[#1f1f1f] hover:border-[#333333] text-[#ededed] rounded transition"
             >
               <span className="flex items-center gap-2">
@@ -403,34 +512,34 @@ export default function Home() {
 
       {/* 2. MAIN CENTER CONSOLE */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-black relative">
-        {/* Top Hairline Header */}
-        <header className="h-12 border-b border-[#1a1a1a] px-4 flex items-center justify-between shrink-0 bg-black/90 backdrop-blur z-10">
-          <div className="flex items-center gap-3">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="text-[#888888] hover:text-white p-1 rounded hover:bg-[#111111] transition"
-                title="Open sidebar"
-              >
-                <SidebarIcon size={16} />
-              </button>
-            )}
-            <div className="flex items-center gap-2 font-mono text-xs">
-              <span className="w-2 h-2 rounded-full bg-[#10b981]" />
-              <span className="text-[#ededed] font-medium">hermes-gateway</span>
-              <span className="text-[#555555]">:8642</span>
+        {/* Top Hairline Header - Fully responsive for mobile */}
+        <header className="h-12 border-b border-[#1a1a1a] px-3 sm:px-4 flex items-center justify-between shrink-0 bg-black/90 backdrop-blur z-10">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="text-[#888888] hover:text-white p-1 rounded hover:bg-[#111111] transition"
+              title="Toggle sidebar"
+            >
+              <SidebarIcon size={16} />
+            </button>
+
+            <div className="flex items-center gap-1.5 font-mono text-xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" />
+              <span className="text-[#ededed] font-medium hidden sm:inline">hermes-gateway</span>
+              <span className="text-[#ededed] font-medium sm:hidden">hermes</span>
+              <span className="text-[#555555] text-[10px] sm:text-xs">:8642</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Quick Command Trigger */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Quick Command Trigger - Compact on mobile */}
             <button
               onClick={() => setCommandPaletteOpen(true)}
-              className="flex items-center gap-2 px-2.5 py-1 rounded text-xs font-mono bg-[#0c0c0c] hover:bg-[#141414] border border-[#1f1f1f] text-[#888888] hover:text-[#ededed] transition"
+              className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-2.5 py-1 rounded text-xs font-mono bg-[#0c0c0c] hover:bg-[#141414] border border-[#1f1f1f] text-[#888888] hover:text-[#ededed] transition"
             >
               <Command size={12} />
-              <span>Search commands</span>
-              <kbd className="text-[10px] bg-[#1a1a1a] text-[#aaaaaa] px-1 py-0.2 rounded border border-[#262626]">
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="text-[9px] sm:text-[10px] bg-[#1a1a1a] text-[#aaaaaa] px-1 py-0.2 rounded border border-[#262626]">
                 ⌘K
               </kbd>
             </button>
@@ -438,7 +547,7 @@ export default function Home() {
             {/* Toggle Inspector Deck */}
             <button
               onClick={() => setInspectorOpen(!inspectorOpen)}
-              className={`p-1.5 rounded border transition flex items-center gap-1.5 text-xs font-mono ${
+              className={`p-1.5 sm:px-2 sm:py-1 rounded border transition flex items-center gap-1.5 text-xs font-mono ${
                 inspectorOpen
                   ? "bg-[#161616] border-[#333333] text-white"
                   : "bg-transparent border-[#1f1f1f] text-[#888888] hover:text-white hover:border-[#2a2a2a]"
@@ -452,24 +561,24 @@ export default function Home() {
         </header>
 
         {/* Chat / Operate Stream */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 space-y-5">
           {messages.length === 0 ? (
-            /* Clean Empty State: True Operate Surface, Zero Marketing Slop */
-            <div className="max-w-2xl mx-auto mt-16 text-center space-y-6">
-              <div className="space-y-2">
-                <div className="text-xs font-mono tracking-widest text-[#666666] uppercase">
+            /* Clean Empty State: True Operate Surface */
+            <div className="max-w-2xl mx-auto mt-8 sm:mt-16 text-center space-y-5 sm:space-y-6">
+              <div className="space-y-1.5 sm:space-y-2">
+                <div className="text-[11px] font-mono tracking-widest text-[#666666] uppercase">
                   Terminal Mode
                 </div>
-                <h1 className="text-xl md:text-2xl font-medium tracking-tight text-white">
+                <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-white">
                   Hermes Autonomous Workspace
                 </h1>
-                <p className="text-xs md:text-sm text-[#888888] max-w-md mx-auto leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#888888] max-w-md mx-auto leading-relaxed px-2">
                   Interaksi langsung dengan runtime server, Google Cloud Workspace, Vercel deployments, dan Stitch MCP.
                 </p>
               </div>
 
               {/* Minimalist prompt suggestions */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left pt-4 max-w-lg mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-left pt-2 max-w-lg mx-auto">
                 <button
                   onClick={() =>
                     sendMessage(
@@ -540,7 +649,7 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <div className="max-w-3xl mx-auto space-y-6">
+            <div className="max-w-3xl mx-auto space-y-5">
               {messages.map((msg, idx) => (
                 <div key={idx} className="space-y-1.5">
                   <div className="flex items-center justify-between text-[11px] font-mono text-[#555555] px-1">
@@ -557,12 +666,35 @@ export default function Home() {
                   </div>
 
                   <div
-                    className={`rounded-md p-4 transition text-sm ${
+                    className={`rounded-md p-3.5 sm:p-4 transition text-sm ${
                       msg.role === "user"
                         ? "bg-[#0a0a0a] border border-[#1f1f1f] text-[#ededed]"
                         : "bg-transparent border border-[#141414] text-[#d4d4d4]"
                     }`}
                   >
+                    {/* Render message attachments preview if any */}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {msg.attachments.map((att, aIdx) => (
+                          <div
+                            key={aIdx}
+                            className="flex items-center gap-2 p-1.5 rounded bg-[#111111] border border-[#222222] text-xs font-mono text-[#cccccc]"
+                          >
+                            {att.isImage && att.preview ? (
+                              <img
+                                src={att.preview}
+                                alt={att.name}
+                                className="w-7 h-7 object-cover rounded border border-[#333333]"
+                              />
+                            ) : (
+                              <FileText size={14} className="text-[#888888]" />
+                            )}
+                            <span className="truncate max-w-[120px]">{att.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="markdown-body">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {msg.content || (loading && idx === messages.length - 1 ? "..." : "")}
@@ -597,10 +729,50 @@ export default function Home() {
           )}
         </div>
 
-        {/* Bottom Dock Input Bar */}
-        <div className="p-4 border-t border-[#1a1a1a] bg-black shrink-0">
+        {/* Bottom Dock Input Bar with Attachment Preview */}
+        <div className="p-2.5 sm:p-4 border-t border-[#1a1a1a] bg-black shrink-0">
           <div className="max-w-3xl mx-auto">
+            {/* Hidden native file input */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept="image/*,.txt,.md,.json,.js,.ts,.tsx,.css,.py,.pdf,.csv"
+              multiple
+              className="hidden"
+            />
+
             <div className="bg-[#080808] border border-[#1f1f1f] focus-within:border-[#333333] rounded-lg p-2.5 transition flex flex-col gap-2">
+              {/* Attachment Preview Row */}
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-2 pb-1.5 border-b border-[#141414]">
+                  {attachments.map((att, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#111111] border border-[#262626] text-xs font-mono text-[#ededed]"
+                    >
+                      {att.isImage ? (
+                        <img
+                          src={att.preview}
+                          alt={att.name}
+                          className="w-5 h-5 object-cover rounded border border-[#333333]"
+                        />
+                      ) : (
+                        <FileText size={12} className="text-[#888888]" />
+                      )}
+                      <span className="truncate max-w-[130px]">{att.name}</span>
+                      <button
+                        onClick={() => removeAttachment(i)}
+                        className="text-[#666666] hover:text-[#ef4444] p-0.5 ml-0.5 transition"
+                        title="Remove"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -618,17 +790,27 @@ export default function Home() {
               />
 
               <div className="flex items-center justify-between pt-1 border-t border-[#141414] text-[11px] font-mono text-[#555555]">
-                <div className="flex items-center gap-3">
-                  <span>Enter to send</span>
-                  <span className="hidden sm:inline">Shift+Enter newline</span>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Attachment Trigger Button */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-1 rounded text-[#888888] hover:text-white hover:bg-[#141414] transition flex items-center gap-1"
+                    title="Attach image or file"
+                  >
+                    <Paperclip size={13} />
+                    <span className="text-[10px] hidden sm:inline">Attach</span>
+                  </button>
+
+                  <span className="hidden sm:inline">Enter to send</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => sendMessage()}
-                    disabled={loading || !input.trim()}
+                    disabled={loading || (!input.trim() && attachments.length === 0)}
                     className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-mono font-medium transition ${
-                      input.trim() && !loading
+                      (input.trim() || attachments.length > 0) && !loading
                         ? "bg-white text-black hover:bg-[#e0e0e0]"
                         : "bg-[#141414] text-[#444444] cursor-not-allowed"
                     }`}
