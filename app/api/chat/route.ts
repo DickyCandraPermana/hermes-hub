@@ -1,6 +1,8 @@
 import { validateAndPrepareMessages } from "../../../lib/security/validator.ts";
 import { redactSensitiveOutput } from "../../../lib/security/sanitizer.ts";
 
+export const maxDuration = 30;
+
 // In-memory sliding window rate limiter
 interface RateLimitRecord {
   count: number;
@@ -110,7 +112,7 @@ export async function POST(req: Request): Promise<Response> {
     "hermes-combo";
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 18000); // 18s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 28000); // 28s timeout (Vercel maxDuration 30s)
 
   try {
     const upstreamUrl = upstreamBase.endsWith("/chat/completions")
