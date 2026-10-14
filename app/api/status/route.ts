@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
-
 export async function GET() {
-  return NextResponse.json({
+  return Response.json({
     status: "online",
-    agent: "Hermes Agent",
+    agent: "The Key",
+    persona: "Guest Mode",
     model: "hermes-combo",
-    user: "Dicky Candra Permana",
+    user: "Sang Pengelana",
     services: [
       { name: "Google Calendar", status: "active", icon: "calendar" },
       { name: "Gmail", status: "active", icon: "mail" },

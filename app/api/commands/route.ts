@@ -1,21 +1,11 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
 
 export async function GET() {
   let commands: { command: string; description: string; category?: string }[] = [];
 
   // Try fetching dynamically from Telegram Bot API if token is present
   try {
-    let token = "";
-    if (fs.existsSync("/opt/data/.env")) {
-      const envLines = fs.readFileSync("/opt/data/.env", "utf-8").split("\n");
-      for (const line of envLines) {
-        if (line.startsWith("TELEGRAM_BOT_TOKEN=")) {
-          token = line.split("=", 2)[1]?.trim();
-          break;
-        }
-      }
-    }
+    const token = process.env.TELEGRAM_BOT_TOKEN || "";
 
     if (token) {
       const res = await fetch(`https://api.telegram.org/bot${token}/getMyCommands`, {

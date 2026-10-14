@@ -72,8 +72,9 @@ export async function GET() {
 
   // 3. GitHub Recent Commits/Repos
   try {
+    const ghOwner = process.env.GITHUB_OWNER || "DickyCandraPermana";
     const ghRes = await execAsync(
-      'export PATH="$HOME/.local/bin:$PATH"; gh repo list DickyCandraPermana --limit 5 --json name,description,updatedAt,isPrivate,url'
+      `export PATH="$HOME/.local/bin:$PATH"; gh repo list ${ghOwner} --limit 5 --json name,description,updatedAt,isPrivate,url`
     );
     result.github = JSON.parse(ghRes.stdout || "[]");
   } catch (err: any) {
