@@ -165,19 +165,19 @@ export function TerminalModal({ isOpen, onClose, telemetry, onAction }: Terminal
         </div>
 
         {/* Interactive Prompt Input */}
-        <form onSubmit={handleSubmit} className="flex items-center px-4 py-3 bg-zinc-950 border-t border-white/10">
-          <span className="text-cyan-400 font-bold mr-2 select-none">SV-07:~#</span>
+        <form onSubmit={handleSubmit} className="flex items-center px-3 sm:px-4 py-2.5 sm:py-3 bg-zinc-950 border-t border-white/10 gap-1.5">
+          <span className="text-cyan-400 font-bold select-none text-[11px] sm:text-xs">SV-07:~#</span>
           <input
             ref={inputRef}
             type="text"
             value={inputVal}
             onChange={(e) => setInputVal(e.target.value)}
-            placeholder="Type command (/help, /warp, /mission oms)..."
-            className="flex-1 bg-transparent border-none outline-none text-white text-xs font-mono placeholder:text-zinc-600"
+            placeholder="Type command (/help)..."
+            className="flex-1 min-w-0 bg-transparent border-none outline-none text-white text-[11px] sm:text-xs font-mono placeholder:text-zinc-600"
           />
           <button
             type="submit"
-            className="px-3 py-1 rounded text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors"
+            className="px-2.5 sm:px-3 py-1 rounded text-[10px] sm:text-[11px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/30 transition-colors shrink-0"
           >
             EXECUTE
           </button>

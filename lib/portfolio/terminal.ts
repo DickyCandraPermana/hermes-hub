@@ -55,14 +55,14 @@ export function processCommand(cmd: string, context?: TelemetryContext): Termina
         success: true,
         output: [
           '// SYSTEM TELEMETRY DUMP // SV-07 CORE',
-          '──────────────────────────────────────────────────────────',
-          `STATUS:       OPTIMAL [SEVENTH MONARCH OF THE SKY]`,
-          `FPS:          ${context?.fps ?? 60} FRAME/SEC`,
-          `NODES:        ${(context?.particles ?? 25000).toLocaleString()} GPU PARTICLES`,
-          `COORDINATES:  ${context?.coords ?? '[0.00, 0.00]'}`,
-          `PROFILE:      ${context?.tier ?? 'Tier 3 (Desktop)'}`,
-          `CLEARANCE:    OMEGA // ZERO PERSONAL LEAK VERIFIED`,
-          '──────────────────────────────────────────────────────────'
+          '──────────────────────────────────────────────',
+          `STATUS:     OPTIMAL [SV-07 MONARCH]`,
+          `FPS:        ${context?.fps ?? 60} FRAME/SEC`,
+          `NODES:      ${(context?.particles ?? 25000).toLocaleString()} PARTICLES`,
+          `COORDINATES:${context?.coords ?? '[0.00, 0.00]'}`,
+          `PROFILE:    ${context?.tier ?? 'Tier 1'}`,
+          `CLEARANCE:  OMEGA // ZERO PRIVACY LEAK`,
+          '──────────────────────────────────────────────'
         ].join('\n')
       };
 
