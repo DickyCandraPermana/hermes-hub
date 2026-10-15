@@ -32,11 +32,11 @@
 - Modify: `lib/portfolio/performance.ts`
 - Test: `tests/portfolio.test.ts`
 
-- [ ] **Step 1: Update unit tests for pearlescent palettes and audio frequencies**
-- [ ] **Step 2: Implement thin-film pearlescent GLSL shaders with chromatic dispersion**
-- [ ] **Step 3: Implement meditative crystal singing bowl synthesizer in `lib/portfolio/audio.ts`**
-- [ ] **Step 4: Run unit tests to verify 100% pass rate**
-- [ ] **Step 5: Commit changes**
+- [x] **Step 1: Update unit tests for pearlescent palettes and audio frequencies**
+- [x] **Step 2: Implement thin-film pearlescent GLSL shaders with chromatic dispersion**
+- [x] **Step 3: Implement meditative crystal singing bowl synthesizer in `lib/portfolio/audio.ts`**
+- [x] **Step 4: Run unit tests to verify 100% pass rate**
+- [x] **Step 5: Commit changes**
 
 ---
 
@@ -46,10 +46,10 @@
 - Modify: `lib/portfolio/engine.ts`
 - Test: `tests/portfolio.test.ts`
 
-- [ ] **Step 1: Replace rigid monolith and wireframe cage with organic morphing jelly and dynamic touch ripple buffer**
-- [ ] **Step 2: Implement 15,000 bioluminescent spores with soft harmonic drift and branchless falloff**
-- [ ] **Step 3: Test engine compilation and lifecycle disposal**
-- [ ] **Step 4: Commit changes**
+- [x] **Step 1: Replace rigid monolith and wireframe cage with organic morphing jelly and dynamic touch ripple buffer**
+- [x] **Step 2: Implement 15,000 bioluminescent spores with soft harmonic drift and branchless falloff**
+- [x] **Step 3: Test engine compilation and lifecycle disposal**
+- [x] **Step 4: Commit changes**
 
 ---
 
@@ -63,12 +63,12 @@
 - Modify: `app/portfolio/page.tsx`
 - Modify: `app/portfolio/layout.tsx`
 
-- [ ] **Step 1: Refactor header into minimalist editorial title with subtle Froerybell badge**
-- [ ] **Step 2: Replace boxy card grid with fluid vertical editorial stream of frosted glass pills**
-- [ ] **Step 3: Rebuild floating dock with pill shape, blur, ripple trigger, and palette shifts**
-- [ ] **Step 4: Update page and layout to pull the organic dreamscape together**
-- [ ] **Step 5: Run tests and `pnpm build` to verify clean compilation**
-- [ ] **Step 6: Commit changes**
+- [x] **Step 1: Refactor header into minimalist editorial title with subtle Froerybell badge**
+- [x] **Step 2: Replace boxy card grid with fluid vertical editorial stream of frosted glass pills**
+- [x] **Step 3: Rebuild floating dock with pill shape, blur, ripple trigger, and palette shifts**
+- [x] **Step 4: Update page and layout to pull the organic dreamscape together**
+- [x] **Step 5: Run tests and `pnpm build` to verify clean compilation**
+- [x] **Step 6: Commit changes**
 
 ---
 
@@ -77,7 +77,7 @@
 **Files:**
 - Test via `browser_exec` and `vision_analyze` on mobile (390x844) and desktop (1280x720)
 
-- [ ] **Step 1: Deploy to remote main and verify Vercel production edge**
-- [ ] **Step 2: Inspect desktop screenshot via `vision_analyze` to confirm organic pearlescent jelly and editorial typography**
-- [ ] **Step 3: Inspect mobile screenshot via `vision_analyze` to ensure flawless touch layout and zero boxiness**
-- [ ] **Step 4: Final verification pass**
+- [x] **Step 1: Deploy to remote main and verify Vercel production edge**
+- [x] **Step 2: Inspect desktop screenshot via `vision_analyze` to confirm organic pearlescent jelly and editorial typography**
+- [x] **Step 3: Inspect mobile screenshot via `vision_analyze` to ensure flawless touch layout and zero boxiness**
+- [x] **Step 4: Final verification pass**
