@@ -3,6 +3,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import { normalizeMathDelimiters } from "../lib/math";
 import {
   Send,
   Calendar,
@@ -35,6 +38,8 @@ import {
 interface Message {
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;
+  isThinking?: boolean;
   timestamp: string;
   attachments?: { name: string; isImage: boolean; preview?: string }[];
 }
@@ -78,7 +83,7 @@ const TELEGRAM_COMMANDS: TelegramCommand[] = [
   { command: "/branch", description: "Branch the current session into a new thread", category: "Session" },
   { command: "/title", description: "Set a custom title for the current session", category: "Session" },
   { command: "/diff", description: "Show git changes in the working directory", category: "Git" },
-  { command: "/plan", description: "Write an implementation plan to .hermes/plans/", category: "Agents" },
+  { command: "/plan", description: "Write an implementation plan to .key/plans/", category: "Agents" },
   { command: "/review", description: "Spawn an independent subagent to review code/PR", category: "Agents" },
   { command: "/agents", description: "Show active agents and running tasks", category: "Agents" },
   { command: "/bg", description: "Run a prompt in a separate background session", category: "Agents" },
@@ -89,7 +94,7 @@ const TELEGRAM_COMMANDS: TelegramCommand[] = [
   { command: "/deny", description: "Deny a pending dangerous command", category: "Approvals" },
   { command: "/yolo", description: "Toggle YOLO mode (skip dangerous command approvals)", category: "Approvals" },
   { command: "/approvals", description: "Show or set persistent command approval mode", category: "Approvals" },
-  { command: "/goal", description: "Set a standing goal Hermes works on across turns", category: "Workflow" },
+  { command: "/goal", description: "Set a standing goal The Key works on across turns", category: "Workflow" },
   { command: "/subgoal", description: "Add extra criteria on the active goal", category: "Workflow" },
   { command: "/loop", description: "Re-run a prompt on a recurring interval", category: "Workflow" },
   { command: "/heartbeat", description: "Set a recurring prompt when session is idle", category: "Workflow" },
@@ -102,7 +107,7 @@ const TELEGRAM_COMMANDS: TelegramCommand[] = [
   { command: "/bundles", description: "List skill bundles and aliases", category: "Skills" },
   { command: "/commands", description: "Browse all commands and skills paginated", category: "System" },
   { command: "/help", description: "Show available commands and documentation", category: "System" },
-  { command: "/update", description: "Update Hermes Agent to the latest version", category: "System" },
+  { command: "/update", description: "Update The Key agent core to the latest version", category: "System" },
   { command: "/restart", description: "Gracefully restart gateway after active runs", category: "System" },
   { command: "/debug", description: "Upload debug report (system info + logs)", category: "System" },
   { command: "/profile", description: "Show active profile name and home directory", category: "System" },
@@ -120,6 +125,14 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [expandedReasoning, setExpandedReasoning] = useState<Record<number, boolean>>({});
+
+  const toggleReasoning = (index: number) => {
+    setExpandedReasoning((prev) => ({
+      ...prev,
+      [index]: prev[index] === false ? true : false,
+    }));
+  };
 
   // Panels state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -444,26 +457,67 @@ export default function Home() {
       const decoder = new TextDecoder("utf-8");
       let done = false;
       let accumulatedContent = "";
+      let accumulatedReasoning = "";
+      let isThinking = false;
+      let lineBuffer = "";
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
         done = readerDone;
         if (value) {
           const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          lineBuffer += chunk;
+          const lines = lineBuffer.split("\n");
+          lineBuffer = lines.pop() || "";
+
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               const dataStr = line.replace("data: ", "").trim();
               if (dataStr === "[DONE]") break;
               try {
                 const parsed = JSON.parse(dataStr);
-                const delta = parsed.choices?.[0]?.delta?.content || "";
-                accumulatedContent += delta;
+                const delta = parsed.choices?.[0]?.delta;
+                const reasoningDelta = delta?.reasoning_content || delta?.reasoning || delta?.thinking || "";
+                const contentDelta = delta?.content || "";
+
+                if (reasoningDelta) {
+                  isThinking = true;
+                  accumulatedReasoning += reasoningDelta;
+                }
+
+                if (contentDelta) {
+                  if (contentDelta.includes("<think>")) {
+                    isThinking = true;
+                    const parts = contentDelta.split("<think>");
+                    accumulatedContent += parts[0];
+                    const rest = parts.slice(1).join("<think>");
+                    if (rest.includes("</think>")) {
+                      const subParts = rest.split("</think>");
+                      accumulatedReasoning += subParts[0];
+                      accumulatedContent += subParts.slice(1).join("</think>");
+                      isThinking = false;
+                    } else {
+                      accumulatedReasoning += rest;
+                    }
+                  } else if (isThinking && contentDelta.includes("</think>")) {
+                    const parts = contentDelta.split("</think>");
+                    accumulatedReasoning += parts[0];
+                    accumulatedContent += parts.slice(1).join("</think>");
+                    isThinking = false;
+                  } else if (isThinking) {
+                    accumulatedReasoning += contentDelta;
+                  } else {
+                    accumulatedContent += contentDelta;
+                  }
+                }
+
                 setMessages((prev) => {
                   const updated = [...prev];
                   const last = updated[updated.length - 1];
                   if (last && last.role === "assistant") {
                     last.content = accumulatedContent;
+                    last.reasoning = accumulatedReasoning;
+                    last.isThinking = isThinking;
                   }
                   return updated;
                 });
@@ -479,12 +533,21 @@ export default function Home() {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last && last.role === "assistant") {
-          last.content = `[Gagal terhubung ke Hermes: ${err.message}]`;
+          last.content = `[Gagal terhubung ke The Key: ${err.message}]`;
+          last.isThinking = false;
         }
         return updated;
       });
     } finally {
       setLoading(false);
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant") {
+          last.isThinking = false;
+        }
+        return updated;
+      });
     }
   };
 
@@ -571,7 +634,7 @@ export default function Home() {
           <div className="h-12 px-4 border-b border-[#1a1a1a] flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-white text-xs font-mono font-medium tracking-widest uppercase">
-                ▲ HERMES
+                ▲ THE KEY
               </span>
               <span className="text-[10px] font-mono text-[#888888] border border-[#222222] px-1.5 py-0.5 rounded">
                 CLI/API
@@ -704,8 +767,8 @@ export default function Home() {
 
             <div className="flex items-center gap-1.5 font-mono text-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-[#10b981]" />
-              <span className="text-[#ededed] font-medium hidden sm:inline">hermes-gateway</span>
-              <span className="text-[#ededed] font-medium sm:hidden">hermes</span>
+              <span className="text-[#ededed] font-medium hidden sm:inline">the-key-gateway</span>
+              <span className="text-[#ededed] font-medium sm:hidden">the-key</span>
               <span className="text-[#555555] text-[10px] sm:text-xs">:8642</span>
             </div>
           </div>
@@ -749,7 +812,7 @@ export default function Home() {
                   Terminal Mode
                 </div>
                 <h1 className="text-xl sm:text-2xl font-medium tracking-tight text-white">
-                  Hermes Autonomous Workspace
+                  The Key Autonomous Workspace
                 </h1>
                 <p className="text-xs sm:text-sm text-[#888888] max-w-md mx-auto leading-relaxed px-2">
                   Interaksi langsung dengan runtime server, Google Cloud Workspace, Vercel deployments, dan Stitch MCP.
@@ -827,7 +890,7 @@ export default function Home() {
 
               {/* Bot commands hint */}
               <div className="text-[11px] font-mono text-[#555555] pt-2">
-                Ketik <span className="text-[#ededed] bg-[#141414] px-1 py-0.5 rounded border border-[#222222]">/</span> untuk membuka daftar 62 perintah Hermes bot
+                Ketik <span className="text-[#ededed] bg-[#141414] px-1 py-0.5 rounded border border-[#222222]">/</span> untuk membuka daftar 62 perintah The Key bot
               </div>
             </div>
           ) : (
@@ -840,7 +903,7 @@ export default function Home() {
                         <span className="text-[#cccccc] font-medium">YOU</span>
                       ) : (
                         <span className="text-white font-medium flex items-center gap-1">
-                          <span>▲</span> HERMES
+                          <span>▲</span> THE KEY
                         </span>
                       )}
                     </span>
@@ -877,9 +940,45 @@ export default function Home() {
                       </div>
                     )}
 
+                    {/* Thinking Process Collapsible Log */}
+                    {msg.role === "assistant" && msg.reasoning && (
+                      <div className="mb-3 rounded-lg border border-[#222222] bg-[#0c0c0c] overflow-hidden text-xs">
+                        <button
+                          type="button"
+                          onClick={() => toggleReasoning(idx)}
+                          className="w-full flex items-center justify-between px-3 py-2 text-[#888888] hover:text-[#ededed] hover:bg-[#141414] transition-colors cursor-pointer select-none"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Sparkles className={`w-3.5 h-3.5 ${msg.isThinking ? "text-amber-400 animate-pulse" : "text-[#666666]"}`} />
+                            <span className="font-medium text-[#cccccc]">
+                              {msg.isThinking ? "The Key sedang berpikir..." : "Log Pemikiran (Thinking Process)"}
+                            </span>
+                            {msg.isThinking && (
+                              <span className="flex h-1.5 w-1.5 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#666666]">
+                            <span>{expandedReasoning[idx] !== false ? "Sembunyikan" : "Tampilkan"}</span>
+                            <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedReasoning[idx] !== false ? "rotate-90" : ""}`} />
+                          </div>
+                        </button>
+                        {expandedReasoning[idx] !== false && (
+                          <div className="px-3.5 py-3 border-t border-[#1a1a1a] bg-[#080808]/70 text-[#999999] font-mono text-[11.5px] leading-relaxed max-h-96 overflow-y-auto whitespace-pre-wrap selection:bg-amber-500/20 selection:text-amber-200">
+                            {msg.reasoning}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="markdown-body">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {msg.content || (loading && idx === messages.length - 1 ? "..." : "")}
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm, remarkMath]}
+                        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
+                      >
+                        {normalizeMathDelimiters(msg.content) || (loading && idx === messages.length - 1 ? "..." : "")}
                       </ReactMarkdown>
                     </div>
 
@@ -918,7 +1017,7 @@ export default function Home() {
             {slashMenuOpen && slashFiltered.length > 0 && (
               <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#080808] border border-[#262626] rounded-lg shadow-2xl overflow-hidden font-mono z-40 max-h-60 overflow-y-auto">
                 <div className="px-3 py-1.5 bg-[#0e0e0e] border-b border-[#1a1a1a] flex items-center justify-between text-[10px] text-[#777777] uppercase tracking-wider">
-                  <span>Hermes Bot Commands</span>
+                  <span>The Key Bot Commands</span>
                   <span>{slashFiltered.length} matches</span>
                 </div>
                 <div className="p-1 space-y-0.5">
@@ -1000,7 +1099,7 @@ export default function Home() {
                     setSlashMenuOpen(false);
                   }
                 }}
-                placeholder="Tulis pesan atau ketik '/' untuk melihat perintah Hermes..."
+                placeholder="Tulis pesan atau ketik '/' untuk melihat perintah The Key..."
                 rows={1}
                 disabled={loading}
                 className="w-full bg-transparent text-sm text-[#ededed] placeholder-[#555555] focus:outline-none resize-none leading-relaxed"

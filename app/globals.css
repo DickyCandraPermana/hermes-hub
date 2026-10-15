@@ -132,3 +132,24 @@ body {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* KaTeX math display & overflow handling */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5rem 0;
+  margin: 0.75rem 0;
+}
+
+.katex {
+  font-size: 1.05em;
+  text-rendering: auto;
+}
+
+/* Suppress glaring red error text on malformed LaTeX */
+.katex-error {
+  color: #888888 !important;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85em;
+}
+

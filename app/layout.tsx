@@ -1,14 +1,15 @@
 import type { Metadata, Viewport } from "next";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Hermes — Personal Assistant Cockpit",
-  description: "Dedicated Personal AI Assistant for Dicky Candra Permana",
+  title: "The Key — Personal Assistant Cockpit",
+  description: "Dedicated Personal AI Assistant Cockpit",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Hermes",
+    title: "The Key",
   },
 };
 

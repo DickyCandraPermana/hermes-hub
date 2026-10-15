@@ -1,6 +1,6 @@
 {
-  "name": "Hermes AI Assistant",
-  "short_name": "Hermes",
+  "name": "The Key AI Assistant",
+  "short_name": "The Key",
   "description": "Personal Autonomous Assistant Cockpit",
   "start_url": "/",
   "display": "standalone",
