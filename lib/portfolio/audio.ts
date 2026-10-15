@@ -144,6 +144,15 @@ class EtherealAudioEngine {
   public playWarp() {
     this.playCrystalBowl(320);
   }
+
+  public playDreamChime() {
+    this.playChime();
+  }
+
+  public toggleMute(): boolean {
+    this.isMuted = !this.isMuted;
+    return this.isMuted;
+  }
 }
 
 export const cyberAudio = new EtherealAudioEngine();

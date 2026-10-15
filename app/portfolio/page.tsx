@@ -102,7 +102,7 @@ export default function PortfolioPage() {
       />
 
       {/* Layer 2: Editorial Stream Container */}
-      <div className="relative z-20 flex flex-col min-h-screen pb-32">
+      <div className="relative z-20 flex flex-col min-h-screen pb-[calc(env(safe-area-inset-bottom,0px)+140px)]">
         <TelemetryFeed telemetry={telemetry} />
         <TacticalHeader />
         <ShowcaseDeck onSelectMission={setActiveMission} />
