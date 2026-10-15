@@ -1,16 +1,16 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'SEVARCHKY // Cyber-Brutalist 3D Portfolio (SV-07)',
+  title: 'FROERYBELL // Surreal Organic Dreamscape (3D Interactive)',
   description:
-    'Recursive 3D WebGL Portfolio, Autonomous Multi-Agent Cockpit Architecture, and High-Throughput Distributed Systems.',
+    'Ethereal 3D WebGL Dreamscape, Amorphous Fluid Shaders, Multi-Agent Architecture, and High-Throughput Distributed Systems.',
   keywords: [
     'WebGL',
     'Three.js',
     'Next.js 16',
     'React 19',
-    'Full-Stack Developer',
-    'Autonomous AI Agents',
+    'Organic 3D',
+    'Creative Developer',
     'Distributed Systems'
   ]
 };
@@ -20,5 +20,9 @@ export default function PortfolioLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="min-h-screen bg-black text-white relative selection:bg-cyan-500 selection:text-black">{children}</div>;
+  return (
+    <div className="min-h-screen bg-[#080612] text-zinc-100 relative selection:bg-purple-300 selection:text-zinc-950 font-sans">
+      {children}
+    </div>
+  );
 }

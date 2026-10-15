@@ -14,8 +14,8 @@ export function TacticalDock({ onWarp, onPaletteChange, onOpenTerminal }: Tactic
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [isMuted, setIsMuted] = useState(cyberAudio.isMuted);
 
-  const handleWarp = () => {
-    cyberAudio.playWarp();
+  const handleRipple = () => {
+    cyberAudio.playCrystalBowl(432);
     onWarp();
   };
 
@@ -23,7 +23,7 @@ export function TacticalDock({ onWarp, onPaletteChange, onOpenTerminal }: Tactic
     const nextIdx = (paletteIdx + 1) % FRESNEL_PALETTES.length;
     setPaletteIdx(nextIdx);
     const pal = FRESNEL_PALETTES[nextIdx];
-    cyberAudio.playBlip(1040, 0.05);
+    cyberAudio.playRipple(780);
     onPaletteChange(pal);
   };
 
@@ -31,63 +31,63 @@ export function TacticalDock({ onWarp, onPaletteChange, onOpenTerminal }: Tactic
     cyberAudio.isMuted = !cyberAudio.isMuted;
     setIsMuted(cyberAudio.isMuted);
     if (!cyberAudio.isMuted) {
-      cyberAudio.playBlip(880, 0.04);
+      cyberAudio.playCrystalBowl(528);
     }
   };
 
   const currentPal = FRESNEL_PALETTES[paletteIdx];
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-2 p-1.5 rounded-full bg-black/70 backdrop-blur-xl border border-white/10 shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
-      {/* Warp Shockwave */}
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto flex items-center gap-1.5 p-1.5 rounded-full bg-white/[0.05] hover:bg-white/[0.08] backdrop-blur-3xl border border-white/15 shadow-[0_12px_45px_rgba(0,0,0,0.6)] transition-all">
+      {/* Organic Ripple Pulse */}
       <button
         type="button"
-        onClick={handleWarp}
-        className="px-4 py-2 rounded-full text-xs font-mono font-bold text-white hover:text-cyan-300 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-cyan-500/40 transition-all flex items-center gap-1.5 active:scale-95"
-        title="Trigger Zero-G Radial Warp Burst"
+        onClick={handleRipple}
+        className="px-4 py-2 rounded-full text-xs font-medium text-white hover:text-purple-200 bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 hover:border-purple-300/30 transition-all flex items-center gap-2 active:scale-95"
+        title="Trigger Fluid Ripple Pulse & Singing Bowl"
       >
-        <span className="text-cyan-400">⚡</span>
-        <span className="hidden sm:inline">ZERO-G WARP</span>
-        <span className="sm:hidden">WARP</span>
+        <span className="text-purple-300">✦</span>
+        <span className="hidden sm:inline">Fluid Ripple</span>
+        <span className="sm:hidden">Ripple</span>
       </button>
 
-      {/* Iridescence Shifter */}
+      {/* Pearlescent Palette Shifter */}
       <button
         type="button"
         onClick={handlePalette}
-        className="px-4 py-2 rounded-full text-xs font-mono font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-2 active:scale-95"
-        title="Cycle Fresnel Iridescence Palette"
+        className="px-4 py-2 rounded-full text-xs font-medium text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 hover:border-purple-300/30 transition-all flex items-center gap-2 active:scale-95"
+        title="Cycle Thin-Film Pearlescent Palette"
       >
         <span
-          className="w-2.5 h-2.5 rounded-full shadow-sm"
+          className="w-2.5 h-2.5 rounded-full shadow-sm ring-1 ring-white/30"
           style={{ backgroundColor: currentPal.hex }}
         />
-        <span className="hidden sm:inline uppercase text-[11px]">{currentPal.name}</span>
-        <span className="sm:hidden uppercase text-[11px]">COLOR</span>
+        <span className="hidden sm:inline text-xs">{currentPal.name}</span>
+        <span className="sm:hidden text-xs">Aura</span>
       </button>
 
-      {/* Terminal Launcher */}
+      {/* Terminal / Codex */}
       <button
         type="button"
         onClick={() => {
-          cyberAudio.playBlip(880, 0.04);
+          cyberAudio.playRipple(840);
           onOpenTerminal();
         }}
-        className="px-4 py-2 rounded-full text-xs font-mono font-semibold text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/30 transition-all flex items-center gap-1.5 active:scale-95"
-        title="Open Tactical Command Terminal (or type /help)"
+        className="px-4 py-2 rounded-full text-xs font-medium text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 hover:border-purple-300/30 transition-all flex items-center gap-1.5 active:scale-95"
+        title="Open Command Terminal (⌘K)"
       >
-        <span className="text-emerald-400 font-bold">&gt;_</span>
-        <span className="hidden sm:inline">TERMINAL</span>
+        <span className="text-purple-300/80 font-mono">&gt;_</span>
+        <span className="hidden sm:inline">Codex</span>
       </button>
 
       {/* Audio Mute/Unmute */}
       <button
         type="button"
         onClick={handleToggleMute}
-        className="p-2 sm:px-3 sm:py-2 rounded-full text-xs font-mono text-zinc-400 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all active:scale-95 flex items-center gap-1"
-        title={isMuted ? 'Unmute Audio Synthesizer' : 'Mute Audio Synthesizer'}
+        className="p-2 sm:px-3 sm:py-2 rounded-full text-xs text-zinc-300 hover:text-white bg-white/[0.05] hover:bg-white/[0.12] border border-white/10 transition-all active:scale-95 flex items-center gap-1"
+        title={isMuted ? 'Unmute Crystal Audio' : 'Mute Crystal Audio'}
       >
-        <span>{isMuted ? '🔇' : '🔊'}</span>
+        <span>{isMuted ? '🔇' : '✨'}</span>
       </button>
     </div>
   );

@@ -9,72 +9,86 @@ interface ShowcaseDeckProps {
 
 export function ShowcaseDeck({ onSelectMission }: ShowcaseDeckProps) {
   return (
-    <section className="relative z-20 pointer-events-none max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
-      <div className="mb-6 pointer-events-auto">
-        <div className="flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-cyan-400" />
-          <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-400">
-            FLAGSHIP ARCHIVES // OPERATIONAL DEPLOYMENTS
+    <section className="relative z-20 pointer-events-none max-w-5xl mx-auto px-4 sm:px-8 py-8 sm:py-16">
+      <div className="mb-8 pointer-events-auto flex flex-col sm:flex-row sm:items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-xs uppercase tracking-[0.25em] text-purple-300/80 font-medium">
+            Selected Works // Engineering Monoliths
           </h2>
+          <p className="text-xs text-zinc-500 font-light mt-1">
+            Grounded production systems, vector knowledge graphs, and distributed runtimes.
+          </p>
         </div>
-        <p className="text-xs text-zinc-600 font-mono mt-0.5">
-          Select any mission profile to decrypt architectural blueprints and telemetry metrics.
-        </p>
+        <span className="text-xs font-mono text-zinc-600">
+          [ 04 ARCHIVES DEPLOYED ]
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 pointer-events-auto">
-        {MISSIONS.map((mission) => (
-          <div
-            key={mission.id}
-            onMouseEnter={() => cyberAudio.playBlip(920, 0.03)}
-            onClick={() => {
-              cyberAudio.playChime();
-              onSelectMission(mission);
-            }}
-            className="group relative cursor-pointer overflow-hidden rounded-sm bg-black/60 hover:bg-black/80 border border-white/10 hover:border-cyan-500/50 p-5 sm:p-6 backdrop-blur-md transition-all duration-300 hover:shadow-[0_0_30px_rgba(0,240,255,0.12)] flex flex-col justify-between"
-          >
-            {/* Top Bar with Mission Code & Domain */}
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="px-2 py-0.5 text-[10px] font-mono tracking-wider font-semibold text-cyan-400 bg-cyan-950/60 border border-cyan-800/40">
-                  {mission.code}
-                </span>
-                <span className="text-[11px] font-mono text-zinc-500 uppercase tracking-widest">
+      {/* Airy Editorial Stream: Single Column Floating Frosted Glass Pills */}
+      <div className="flex flex-col gap-6 sm:gap-8 pointer-events-auto">
+        {MISSIONS.map((mission, idx) => {
+          const indexNum = `0${idx + 1}`;
+          return (
+            <div
+              key={mission.id}
+              onMouseEnter={() => cyberAudio.playRipple(580 + idx * 80)}
+              onClick={() => {
+                cyberAudio.playCrystalBowl(432 + idx * 60);
+                onSelectMission(mission);
+              }}
+              className="group relative cursor-pointer overflow-hidden rounded-[2rem] sm:rounded-[2.5rem] bg-white/[0.025] hover:bg-white/[0.06] border border-white/[0.08] hover:border-purple-300/40 p-6 sm:p-9 backdrop-blur-3xl transition-all duration-500 hover:shadow-[0_12px_45px_rgba(216,180,254,0.12)] hover:-translate-y-1 flex flex-col justify-between"
+            >
+              {/* Top Row: Index, Code & Domain */}
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl sm:text-2xl font-serif italic text-purple-300/60 group-hover:text-purple-200 transition-colors">
+                    {indexNum}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-[11px] font-mono tracking-wider text-purple-200/90 bg-purple-500/10 border border-purple-400/20">
+                    {mission.code}
+                  </span>
+                </div>
+                <span className="text-xs font-light text-zinc-400 tracking-wider">
                   {mission.domain}
                 </span>
               </div>
 
-              <h3 className="text-lg sm:text-xl font-bold tracking-tight text-white group-hover:text-cyan-300 transition-colors">
-                {mission.title}
-              </h3>
-              <p className="text-xs font-mono text-zinc-400 mt-1 line-clamp-2">
-                {mission.tagline}
-              </p>
-            </div>
+              {/* Title & Tagline */}
+              <div className="my-2">
+                <h3 className="text-2xl sm:text-3xl font-light tracking-tight text-white group-hover:text-purple-100 transition-colors">
+                  {mission.title}
+                </h3>
+                <p className="text-sm font-light text-zinc-400 mt-2 max-w-2xl leading-relaxed">
+                  {mission.tagline}
+                </p>
+              </div>
 
-            {/* Metrics Grid Preview */}
-            <div className="mt-6 pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
-              {mission.metrics.map((kpi, idx) => (
-                <div key={idx} className="flex flex-col">
-                  <span className="text-[10px] font-mono text-zinc-500 uppercase truncate">
-                    {kpi.label}
-                  </span>
-                  <span className="text-sm font-bold font-mono text-zinc-200 group-hover:text-cyan-400 transition-colors">
-                    {kpi.value}
-                  </span>
+              {/* Metrics Pills & Explore Link */}
+              <div className="mt-6 pt-5 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  {mission.metrics.map((kpi, kIdx) => (
+                    <div
+                      key={kIdx}
+                      className="px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] flex items-center gap-2 text-xs"
+                    >
+                      <span className="text-zinc-500 font-light text-[11px] uppercase">
+                        {kpi.label}:
+                      </span>
+                      <span className="font-medium text-purple-200">
+                        {kpi.value}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* Bottom Action Hint */}
-            <div className="mt-4 flex items-center justify-between text-[11px] font-mono text-zinc-500 group-hover:text-cyan-400 transition-colors">
-              <span className="tracking-wider">CLEARANCE // GRANTED</span>
-              <span className="group-hover:translate-x-1 transition-transform inline-flex items-center gap-1 font-bold">
-                VIEW DOSSIER &rarr;
-              </span>
+                <div className="inline-flex items-center gap-2 text-xs font-medium text-purple-300 group-hover:text-white transition-colors">
+                  <span>Explore Blueprint</span>
+                  <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

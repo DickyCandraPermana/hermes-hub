@@ -18,7 +18,7 @@ export default function PortfolioPage() {
 
   const [telemetry, setTelemetry] = useState<EngineTelemetry>({
     fps: 60,
-    particles: 25000,
+    particles: 16000,
     coords: '[0.00, 0.00]',
     tier: 'Detecting...'
   });
@@ -31,7 +31,7 @@ export default function PortfolioPage() {
     setMounted(true);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // ⌘K or Ctrl+K opens tactical terminal
+      // ⌘K or Ctrl+K opens command codex
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setIsTerminalOpen((prev) => !prev);
@@ -46,22 +46,22 @@ export default function PortfolioPage() {
     setTelemetry(data);
   }, []);
 
-  const handleWarp = useCallback(() => {
+  const handleRipple = useCallback(() => {
     if (engineRef.current) {
-      engineRef.current.triggerWarp(1.8);
+      engineRef.current.triggerRipple(undefined, 1.4);
     }
   }, []);
 
   const handlePaletteChange = useCallback((palette: FresnelColorAnchor) => {
     if (engineRef.current) {
-      engineRef.current.setFresnelColor(palette.hex);
+      engineRef.current.setFresnelColor(palette.key);
     }
   }, []);
 
   const handleTerminalAction = useCallback((action: TerminalAction) => {
     switch (action.type) {
       case 'TRIGGER_WARP':
-        handleWarp();
+        handleRipple();
         break;
       case 'SET_PALETTE':
         if (action.payload) {
@@ -80,11 +80,11 @@ export default function PortfolioPage() {
       default:
         break;
     }
-  }, [handleWarp, handlePaletteChange]);
+  }, [handleRipple, handlePaletteChange]);
 
   return (
-    <main className="relative min-h-screen w-full bg-[#050507] overflow-x-hidden">
-      {/* Layer 0: High-Performance 3D WebGL Canvas */}
+    <main className="relative min-h-screen w-full bg-[#080612] overflow-x-hidden selection:bg-purple-300 selection:text-zinc-950">
+      {/* Layer 0: High-Performance 3D WebGL Organic Jelly & Spore Canvas */}
       {mounted && (
         <PortfolioCanvas
           onTelemetry={handleTelemetry}
@@ -92,31 +92,30 @@ export default function PortfolioPage() {
         />
       )}
 
-      {/* Layer 1: Optical Scanline & CRT Grain Vignette Overlay */}
+      {/* Layer 1: Ethereal Ambient Radial Lighting & Subtle Dream Glow */}
       <div
-        className="fixed inset-0 pointer-events-none z-10 opacity-30"
+        className="fixed inset-0 pointer-events-none z-10"
         style={{
-          backgroundImage:
-            'radial-gradient(circle at center, transparent 40%, rgba(0, 0, 0, 0.85) 100%), linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%)',
-          backgroundSize: '100% 100%, 100% 4px'
+          background:
+            'radial-gradient(circle at 75% 25%, rgba(216, 180, 254, 0.08) 0%, transparent 55%), radial-gradient(circle at 25% 75%, rgba(110, 231, 183, 0.05) 0%, transparent 60%)'
         }}
       />
 
-      {/* Layer 2: Swiss Cyber-Brutalist HUD Container */}
-      <div className="relative z-20 flex flex-col min-h-screen pb-28">
+      {/* Layer 2: Editorial Stream Container */}
+      <div className="relative z-20 flex flex-col min-h-screen pb-32">
         <TelemetryFeed telemetry={telemetry} />
         <TacticalHeader />
         <ShowcaseDeck onSelectMission={setActiveMission} />
       </div>
 
-      {/* Floating Tactical Dock */}
+      {/* Floating Fluid Glass Dock */}
       <TacticalDock
-        onWarp={handleWarp}
+        onWarp={handleRipple}
         onPaletteChange={handlePaletteChange}
         onOpenTerminal={() => setIsTerminalOpen(true)}
       />
 
-      {/* Modals */}
+      {/* Modals & Drawers */}
       <MissionModal
         mission={activeMission}
         onClose={() => setActiveMission(null)}

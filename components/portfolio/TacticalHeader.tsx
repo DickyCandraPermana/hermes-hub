@@ -5,41 +5,43 @@ import { cyberAudio } from '../../lib/portfolio/audio.ts';
 
 export function TacticalHeader() {
   return (
-    <header className="relative z-20 pointer-events-none pt-8 pb-4 sm:pt-12 sm:pb-8 max-w-7xl mx-auto px-4 sm:px-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
+    <header className="relative z-20 pointer-events-none pt-8 pb-4 sm:pt-14 sm:pb-8 max-w-5xl mx-auto px-4 sm:px-8">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-6 border-b border-white/[0.08]">
         <div className="pointer-events-auto">
-          <div className="flex items-center gap-3">
-            <span className="inline-block px-2 py-0.5 text-[10px] font-mono tracking-widest uppercase bg-cyan-950/80 text-cyan-400 border border-cyan-500/30">
-              SV-07 MONARCH
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-medium tracking-widest uppercase bg-purple-500/10 text-purple-300 border border-purple-400/20 rounded-full backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+              FROERYBELL ARCHETYPE
             </span>
-            <span className="text-xs font-mono text-zinc-500 tracking-wider">
-              RECURSIVE ARCHIVE 2026
+            <span className="text-xs text-zinc-500 tracking-wider font-light">
+              01 Soul • 07 Spheres
             </span>
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white mt-2">
-            SEVARCHKY<span className="text-cyan-400">.</span>
+          
+          <h1 className="text-4xl sm:text-6xl font-light tracking-tight text-white mt-3">
+            Surreal <span className="italic font-serif font-normal text-transparent bg-clip-text bg-gradient-to-r from-purple-200 via-pink-200 to-indigo-200">Dreamscape</span>
           </h1>
-          <p className="text-xs sm:text-sm font-mono text-zinc-400 mt-1 max-w-xl">
-            Autonomous Multi-Agent Architecture • Real-Time WebGL/WebGPU Systems • Distributed High-Throughput Gateways
+          <p className="text-sm font-light text-zinc-400 mt-2 max-w-xl leading-relaxed">
+            Amorphous WebGL fluid geometries, continuous domain simplex morphing, and high-throughput autonomous architectures.
           </p>
         </div>
 
-        <div className="pointer-events-auto flex items-center gap-3 self-start sm:self-center">
+        <div className="pointer-events-auto flex items-center gap-2.5 self-start sm:self-end">
           <Link
             href="/"
-            onClick={() => cyberAudio.playBlip(750, 0.04)}
-            className="px-3.5 py-1.5 text-xs font-mono text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800/80 border border-white/10 hover:border-cyan-500/40 rounded transition-all duration-200 backdrop-blur-md flex items-center gap-2"
+            onClick={() => cyberAudio.playRipple(660)}
+            className="px-4 py-2 text-xs font-medium text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-purple-300/30 rounded-full transition-all duration-300 backdrop-blur-xl flex items-center gap-2 active:scale-95 shadow-sm"
           >
-            <span className="text-cyan-400 font-bold">&larr;</span> COCKPIT
+            <span className="text-purple-300">&larr;</span> Nexus Cockpit
           </Link>
           <a
             href="https://github.com/DickyCandraPermana"
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => cyberAudio.playBlip(880, 0.04)}
-            className="px-3.5 py-1.5 text-xs font-mono text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800/80 border border-white/10 hover:border-cyan-500/40 rounded transition-all duration-200 backdrop-blur-md"
+            onClick={() => cyberAudio.playRipple(820)}
+            className="px-4 py-2 text-xs font-medium text-zinc-300 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 hover:border-purple-300/30 rounded-full transition-all duration-300 backdrop-blur-xl active:scale-95 shadow-sm"
           >
-            GITHUB // ARCHIVE
+            GitHub Archive ↗
           </a>
         </div>
       </div>
