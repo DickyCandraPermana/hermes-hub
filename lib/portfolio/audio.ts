@@ -1,13 +1,15 @@
-// Pure Web Audio API Synthesizer — Zero External MP3 Dependencies
+// Pure Web Audio API Synthesizer — Ethereal Organic Harmonics & Crystal Bowls
 
-class CyberAudioEngine {
+class EtherealAudioEngine {
   private ctx: AudioContext | null = null;
   public isMuted: boolean = false;
   private isUnlocked: boolean = false;
 
   private initContext() {
     if (this.ctx) return;
-    const AudioCtxClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioCtxClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (AudioCtxClass) {
       this.ctx = new AudioCtxClass();
     }
@@ -24,21 +26,24 @@ class CyberAudioEngine {
     }
   }
 
-  public playBlip(freq: number = 880, duration: number = 0.05) {
+  // Soft crystalline water droplet ripple
+  public playRipple(baseFreq: number = 620) {
     if (this.isMuted) return;
     this.unlock();
     if (!this.ctx || this.ctx.state !== 'running') return;
 
     try {
+      const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.6, now + 0.08);
 
-      gain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.06, this.ctx.currentTime + 0.005);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(0.05, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
       osc.connect(gain);
       gain.connect(this.ctx.destination);
@@ -48,56 +53,60 @@ class CyberAudioEngine {
         gain.disconnect();
       };
 
-      osc.start(this.ctx.currentTime);
-      osc.stop(this.ctx.currentTime + duration);
+      osc.start(now);
+      osc.stop(now + 0.18);
     } catch {}
   }
 
-  public playWarp() {
+  // Meditative Singing Crystal Bowl / Ethereal Swell
+  public playCrystalBowl(freq: number = 432) {
     if (this.isMuted) return;
     this.unlock();
     if (!this.ctx || this.ctx.state !== 'running') return;
 
     try {
       const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const filter = this.ctx.createBiquadFilter();
+      const osc1 = this.ctx.createOscillator();
+      const osc2 = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
 
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.exponentialRampToValueAtTime(45, now + 0.45);
+      // Dual detuned oscillators for singing bowl chorus beating
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(freq, now);
 
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(1400, now);
-      filter.frequency.exponentialRampToValueAtTime(120, now + 0.45);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(freq * 1.503, now); // Sweet fifth harmonic
 
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.exponentialRampToValueAtTime(0.12, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
 
-      osc.connect(filter);
-      filter.connect(gain);
+      osc1.connect(gain);
+      osc2.connect(gain);
       gain.connect(this.ctx.destination);
 
-      osc.onended = () => {
-        osc.disconnect();
-        filter.disconnect();
+      osc1.onended = () => {
+        osc1.disconnect();
+        osc2.disconnect();
         gain.disconnect();
       };
 
-      osc.start(now);
-      osc.stop(now + 0.45);
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 1.2);
+      osc2.stop(now + 1.2);
     } catch {}
   }
 
+  // Ethereal Pentatonic Wind Chime
   public playChime() {
     if (this.isMuted) return;
     this.unlock();
     if (!this.ctx || this.ctx.state !== 'running') return;
 
     try {
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      // Ethereal Pentatonic Frequencies (F4, Ab4, Bb4, C5, Eb5)
+      const notes = [349.23, 415.30, 466.16, 523.25, 622.25];
       const now = this.ctx.currentTime;
 
       notes.forEach((freq, idx) => {
@@ -105,12 +114,12 @@ class CyberAudioEngine {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
 
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, now + idx * 0.035);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.045);
 
-        gain.gain.setValueAtTime(0.001, now + idx * 0.035);
-        gain.gain.exponentialRampToValueAtTime(0.04, now + idx * 0.035 + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.035 + 0.22);
+        gain.gain.setValueAtTime(0.0001, now + idx * 0.045);
+        gain.gain.exponentialRampToValueAtTime(0.035, now + idx * 0.045 + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.045 + 0.45);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
@@ -120,11 +129,21 @@ class CyberAudioEngine {
           gain.disconnect();
         };
 
-        osc.start(now + idx * 0.035);
-        osc.stop(now + idx * 0.035 + 0.22);
+        osc.start(now + idx * 0.045);
+        osc.stop(now + idx * 0.045 + 0.45);
       });
     } catch {}
   }
+
+  // Backward compatibility alias for blip
+  public playBlip(freq: number = 880, duration: number = 0.05) {
+    this.playRipple(freq);
+  }
+
+  // Backward compatibility alias for warp
+  public playWarp() {
+    this.playCrystalBowl(320);
+  }
 }
 
-export const cyberAudio = new CyberAudioEngine();
+export const cyberAudio = new EtherealAudioEngine();

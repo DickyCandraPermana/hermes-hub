@@ -48,96 +48,161 @@ export const SIMPLEX_3D_CHUNK = /* glsl */ `
   }
 `;
 
-export const MONOLITH_VERTEX_SHADER = /* glsl */ `
+// Organic Amorphous Jelly Vertex Shader with dynamic touch ripples
+export const ORGANIC_JELLY_VERTEX_SHADER = /* glsl */ `
   uniform float uTime;
   uniform float uNoiseDensity;
   uniform float uNoiseStrength;
+  uniform vec3 uRippleOrigin;
+  uniform float uRippleTime;
+  uniform float uRippleIntensity;
+  
   varying vec3 vNormal;
   varying vec3 vViewPosition;
+  varying vec3 vWorldPosition;
+  varying float vDisplacement;
 
   ${SIMPLEX_3D_CHUNK}
 
   void main() {
     vNormal = normalize(normalMatrix * normal);
     vec3 pos = position;
-    float noise = snoise(pos * uNoiseDensity + vec3(0.0, 0.0, uTime * 0.35));
-    pos += normal * (noise * uNoiseStrength);
+
+    // Continuous 3D domain simplex noise morphing
+    float slowTime = uTime * 0.45;
+    float n1 = snoise(pos * uNoiseDensity + vec3(0.0, slowTime * 0.5, slowTime * 0.3));
+    float n2 = snoise(pos * (uNoiseDensity * 1.8) - vec3(slowTime * 0.4, 0.0, slowTime * 0.2)) * 0.45;
+    float totalNoise = n1 + n2;
+
+    // Organic ripple pulse triggered by touch/click
+    float distToOrigin = distance(pos, uRippleOrigin);
+    float rippleWave = sin(distToOrigin * 6.0 - uRippleTime * 8.0);
+    float rippleDamp = exp(-distToOrigin * 1.5) * exp(-uRippleTime * 2.2);
+    float ripple = rippleWave * rippleDamp * uRippleIntensity;
+
+    float displacement = (totalNoise * uNoiseStrength) + ripple;
+    vDisplacement = displacement;
+    pos += normal * displacement;
+
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     vViewPosition = -mvPosition.xyz;
+    vWorldPosition = (modelMatrix * vec4(pos, 1.0)).xyz;
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
-export const MONOLITH_FRAGMENT_SHADER = /* glsl */ `
+// Thin-Film Pearlescent Chromatic Jelly Fragment Shader
+export const ORGANIC_JELLY_FRAGMENT_SHADER = /* glsl */ `
   uniform vec3 uBaseColor;
   uniform vec3 uFresnelColor;
+  uniform vec3 uSecondaryColor;
+  uniform float uTime;
+
   varying vec3 vNormal;
   varying vec3 vViewPosition;
+  varying vec3 vWorldPosition;
+  varying float vDisplacement;
 
   void main() {
     vec3 normal = normalize(vNormal);
     vec3 viewDir = normalize(vViewPosition);
+
+    // High-order smooth Fresnel curve
+    float NdotV = clamp(dot(normal, viewDir), 0.0, 1.0);
+    float fresnel = pow(1.0 - NdotV, 3.2);
+
+    // Thin-film iridescent chromatic dispersion
+    float chromaticPhase = NdotV * 3.14159 + (vDisplacement * 2.5) + (uTime * 0.2);
+    vec3 iridescentColor;
+    iridescentColor.r = sin(chromaticPhase) * 0.5 + 0.5;
+    iridescentColor.g = sin(chromaticPhase + 2.094) * 0.5 + 0.5; // +120 deg
+    iridescentColor.b = sin(chromaticPhase + 4.188) * 0.5 + 0.5; // +240 deg
+
+    // Blend between primary base, pearlescent glow, and secondary chromatic hue
+    vec3 softPearlescent = mix(uFresnelColor, uSecondaryColor, iridescentColor.g);
+    vec3 surface = mix(uBaseColor, softPearlescent, fresnel * 0.85);
+
+    // Dual soft specular highlights (moonstone glint)
+    vec3 lightDir1 = normalize(vec3(1.2, 2.0, 1.8));
+    vec3 lightDir2 = normalize(vec3(-1.5, -1.0, 0.8));
     
-    // Smooth high-order Fresnel curve
-    float fresnel = clamp(1.0 - dot(normal, viewDir), 0.0, 1.0);
-    float fresnelPow = pow(fresnel, 2.8);
+    vec3 half1 = normalize(lightDir1 + viewDir);
+    vec3 half2 = normalize(lightDir2 + viewDir);
+    
+    float spec1 = pow(max(dot(normal, half1), 0.0), 40.0) * 0.65;
+    float spec2 = pow(max(dot(normal, half2), 0.0), 24.0) * 0.35;
 
-    // Specular Highlight Glint
-    vec3 lightDir = normalize(vec3(1.0, 2.0, 1.5));
-    vec3 halfVec = normalize(lightDir + viewDir);
-    float spec = pow(max(dot(normal, halfVec), 0.0), 32.0);
-
-    vec3 finalColor = mix(uBaseColor, uFresnelColor, fresnelPow) + (spec * 0.85);
-    gl_FragColor = vec4(finalColor, 1.0);
+    vec3 finalGlow = surface + vec3(spec1 + spec2) * (uFresnelColor * 0.5 + 0.5);
+    gl_FragColor = vec4(finalGlow, 0.94);
   }
 `;
 
-export const PARTICLE_VERTEX_SHADER = /* glsl */ `
+// 15,000 Bioluminescent Deep-Sea Spores Vertex Shader
+export const BIO_SPORE_VERTEX_SHADER = /* glsl */ `
   uniform float uTime;
-  uniform vec3 uMouse;
-  uniform float uWarp;
-  attribute float scale;
-  varying float vDistance;
+  uniform vec3 uPointer;
+  uniform float uRippleTime;
+  uniform float uRippleIntensity;
+  attribute float aScale;
+  attribute float aPhase;
+
+  varying float vAlpha;
+  varying vec3 vColor;
+
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
 
   void main() {
     vec3 pos = position;
 
-    // Magnetic mouse / pointer interaction
-    float d = distance(pos.xy, uMouse.xy);
-    vDistance = d;
-    if (d < 5.0) {
-      vec2 dir = normalize(pos.xy - uMouse.xy);
-      pos.xy += dir * (5.0 - d) * 1.35;
+    // Harmonic floating ocean wave drift
+    float t = uTime * 0.6 + aPhase;
+    pos.x += sin(t * 1.2 + pos.y * 0.3) * 0.65;
+    pos.y += cos(t * 0.9 + pos.x * 0.4) * 0.55;
+    pos.z += sin(t * 1.5 + pos.z * 0.2) * 0.45;
+
+    // Gentle repulsion from touch/pointer
+    float dist = distance(pos.xy, uPointer.xy);
+    if (dist < 4.5) {
+      vec2 pushDir = normalize(pos.xy - uPointer.xy);
+      pos.xy += pushDir * (4.5 - dist) * 0.85;
     }
 
-    // Zero-G Radial Warp Shockwave
-    if (uWarp > 0.0) {
-      pos += normalize(pos) * sin(uWarp * 3.14159) * 6.5;
+    // Ripple expansion impulse
+    if (uRippleIntensity > 0.0 && uRippleTime < 2.0) {
+      float rDist = length(pos);
+      float shock = sin(rDist * 4.0 - uRippleTime * 6.0) * exp(-uRippleTime * 1.5);
+      pos += normalize(pos) * (shock * uRippleIntensity * 1.8);
     }
-
-    // Ambient floating harmonic drift
-    pos.z += sin(uTime * 1.5 + pos.x) * 0.45;
 
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = scale * (22.0 / -mvPosition.z);
+    gl_PointSize = aScale * (24.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
+
+    // Color gradient across spore depth
+    float mixFactor = sin(aPhase + uTime * 0.3) * 0.5 + 0.5;
+    vColor = mix(uColorA, uColorB, mixFactor);
+    vAlpha = clamp(0.35 + sin(t * 2.0) * 0.25, 0.2, 0.95);
   }
 `;
 
-// Branchless TBDR-Compliant Particle Shader (Zero Discard for Mobile 120 FPS)
-export const PARTICLE_FRAGMENT_SHADER = /* glsl */ `
-  varying float vDistance;
+// TBDR-Compliant Branchless Spore Fragment Shader (Zero Discard for 120 FPS)
+export const BIO_SPORE_FRAGMENT_SHADER = /* glsl */ `
+  varying float vAlpha;
+  varying vec3 vColor;
 
   void main() {
     float dist = length(gl_PointCoord - vec2(0.5));
-    // Branchless soft circular falloff without discard instruction
-    float alpha = clamp(0.5 - dist, 0.0, 1.0) * 2.0;
-    alpha = alpha * alpha; // Quadratic easing
+    // Soft gaussian-like circular glow without discard
+    float intensity = clamp(0.5 - dist, 0.0, 1.0) * 2.0;
+    intensity = intensity * intensity * intensity; // Smooth cubic falloff
 
-    vec3 cyan = vec3(0.0, 0.94, 1.0);
-    vec3 amber = vec3(1.0, 0.33, 0.0);
-    vec3 col = mix(cyan, amber, clamp(vDistance / 6.0, 0.0, 1.0));
-
-    gl_FragColor = vec4(col * alpha, alpha * 0.85);
+    gl_FragColor = vec4(vColor * (intensity * vAlpha), intensity * vAlpha);
   }
 `;
+
+// Backward-compatibility aliases
+export const MONOLITH_VERTEX_SHADER = ORGANIC_JELLY_VERTEX_SHADER;
+export const MONOLITH_FRAGMENT_SHADER = ORGANIC_JELLY_FRAGMENT_SHADER;
+export const PARTICLE_VERTEX_SHADER = BIO_SPORE_VERTEX_SHADER;
+export const PARTICLE_FRAGMENT_SHADER = BIO_SPORE_FRAGMENT_SHADER;
