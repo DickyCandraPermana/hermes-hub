@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import { normalizeMathDelimiters } from "../lib/math";
+import { StreamParser } from "../lib/stream-parser";
 import {
   Send,
   Calendar,
@@ -456,10 +457,8 @@ export default function Home() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let done = false;
-      let accumulatedContent = "";
-      let accumulatedReasoning = "";
-      let isThinking = false;
       let lineBuffer = "";
+      const streamParser = new StreamParser();
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
@@ -477,50 +476,19 @@ export default function Home() {
               try {
                 const parsed = JSON.parse(dataStr);
                 const delta = parsed.choices?.[0]?.delta;
-                const reasoningDelta = delta?.reasoning_content || delta?.reasoning || delta?.thinking || "";
-                const contentDelta = delta?.content || "";
-
-                if (reasoningDelta) {
-                  isThinking = true;
-                  accumulatedReasoning += reasoningDelta;
-                }
-
-                if (contentDelta) {
-                  if (contentDelta.includes("<think>")) {
-                    isThinking = true;
-                    const parts = contentDelta.split("<think>");
-                    accumulatedContent += parts[0];
-                    const rest = parts.slice(1).join("<think>");
-                    if (rest.includes("</think>")) {
-                      const subParts = rest.split("</think>");
-                      accumulatedReasoning += subParts[0];
-                      accumulatedContent += subParts.slice(1).join("</think>");
-                      isThinking = false;
-                    } else {
-                      accumulatedReasoning += rest;
+                if (delta) {
+                  streamParser.processDelta(delta);
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const last = updated[updated.length - 1];
+                    if (last && last.role === "assistant") {
+                      last.content = streamParser.accumulatedContent;
+                      last.reasoning = streamParser.accumulatedReasoning;
+                      last.isThinking = streamParser.isThinking;
                     }
-                  } else if (isThinking && contentDelta.includes("</think>")) {
-                    const parts = contentDelta.split("</think>");
-                    accumulatedReasoning += parts[0];
-                    accumulatedContent += parts.slice(1).join("</think>");
-                    isThinking = false;
-                  } else if (isThinking) {
-                    accumulatedReasoning += contentDelta;
-                  } else {
-                    accumulatedContent += contentDelta;
-                  }
+                    return updated;
+                  });
                 }
-
-                setMessages((prev) => {
-                  const updated = [...prev];
-                  const last = updated[updated.length - 1];
-                  if (last && last.role === "assistant") {
-                    last.content = accumulatedContent;
-                    last.reasoning = accumulatedReasoning;
-                    last.isThinking = isThinking;
-                  }
-                  return updated;
-                });
               } catch {
                 // Ignore parse errors from chunk boundaries
               }
@@ -528,6 +496,18 @@ export default function Home() {
           }
         }
       }
+
+      const finalState = streamParser.finish();
+      setMessages((prev) => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last && last.role === "assistant") {
+          last.content = finalState.content;
+          last.reasoning = finalState.reasoning;
+          last.isThinking = false;
+        }
+        return updated;
+      });
     } catch (err: any) {
       setMessages((prev) => {
         const updated = [...prev];
